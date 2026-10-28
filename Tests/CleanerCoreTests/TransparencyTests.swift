@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class DefaultDecisionTests: XCTestCase {
+final class DefaultDecisionTests: CleanerTestCase {
     private func entry(scope: EntryScope = .home, daysAgo: Double? = 1) -> Entry {
         var entry = Entry(ruleID: "r", url: URL(fileURLWithPath: "/tmp/x"), scope: scope)
         entry.measurement = DiskUsage(
@@ -43,7 +43,7 @@ final class DefaultDecisionTests: XCTestCase {
     }
 }
 
-final class ReportTransparencyTests: XCTestCase {
+final class ReportTransparencyTests: CleanerTestCase {
     private func entry(_ home: FakeHome, _ name: String, rule: String, bytes: Int64, scope: EntryScope = .home, locked: String? = nil) -> Entry {
         var entry = Entry(ruleID: rule, url: home.path("Documents/\(name)"), lockedReason: locked, scope: scope)
         entry.measurement = DiskUsage(bytes: bytes, fileCount: 1, lastModified: Date().addingTimeInterval(-3 * 86_400), hadErrors: false)
@@ -74,21 +74,21 @@ final class ReportTransparencyTests: XCTestCase {
             selected: [autoEntry.id, manualOn.id], manual: [removed.id, manualOn.id])
 
         // Підсумок розрізняє походження вибору.
-        XCTAssertTrue(text.contains("Вибрано АВТОМАТИЧНО (за замовчуванням): 1 елементів, 500 MB"), text)
-        XCTAssertTrue(text.contains("Додано ВРУЧНУ користувачем: 1 елементів, 100 MB"))
-        XCTAssertTrue(text.contains("Знято ВРУЧНУ (програма вибрала б сама): 1 елементів, 300 MB"))
-        XCTAssertTrue(text.contains("Не вибрано, бо лише вручну: 1 елементів, 90 MB"))
+        XCTAssertTrue(text.contains("Вибрано АВТОМАТИЧНО (за замовчуванням): 1 елементів, 500 МБ"), text)
+        XCTAssertTrue(text.contains("Додано ВРУЧНУ користувачем: 1 елементів, 100 МБ"))
+        XCTAssertTrue(text.contains("Знято ВРУЧНУ (програма вибрала б сама): 1 елементів, 300 МБ"))
+        XCTAssertTrue(text.contains("Не вибрано, бо лише вручну: 1 елементів, 90 МБ"))
         XCTAssertTrue(text.contains("особисті файли: лише вручну: 1 елементів"))
-        XCTAssertTrue(text.contains("ЗАБЛОКОВАНО (зараз не можна вибрати): 1 елементів, 200 MB"))
-        XCTAssertTrue(text.contains("Застосунок запущений: 1 елементів, 200 MB"))
+        XCTAssertTrue(text.contains("ЗАБЛОКОВАНО (зараз не можна вибрати): 1 елементів, 200 МБ"))
+        XCTAssertTrue(text.contains("Застосунок запущений: 1 елементів, 200 МБ"))
         XCTAssertTrue(text.contains("РАЗОМ ВИБРАНО ЗАРАЗ: 2 елементів"))
 
         // Кожен рядок має свою позначку.
-        XCTAssertTrue(text.contains("[✓ авто] 500 MB") && text.contains("auto.bin"))
-        XCTAssertTrue(text.contains("[✗ ЗНЯТО ВРУЧНУ] 300 MB") && text.contains("removed.bin"))
-        XCTAssertTrue(text.contains("[🔒] 200 MB") && text.contains("busy.bin"))
-        XCTAssertTrue(text.contains("[✓ ВРУЧНУ] 100 MB") && text.contains("mine.psd"))
-        XCTAssertTrue(text.contains("[  ] 90 MB") && text.contains("other.psd"))
+        XCTAssertTrue(text.contains("[✓ авто] 500 МБ") && text.contains("auto.bin"))
+        XCTAssertTrue(text.contains("[✗ ЗНЯТО ВРУЧНУ] 300 МБ") && text.contains("removed.bin"))
+        XCTAssertTrue(text.contains("[🔒] 200 МБ") && text.contains("busy.bin"))
+        XCTAssertTrue(text.contains("[✓ ВРУЧНУ] 100 МБ") && text.contains("mine.psd"))
+        XCTAssertTrue(text.contains("[  ] 90 МБ") && text.contains("other.psd"))
     }
 
     func testLegendAndRulePolicyAreExplained() throws {
@@ -119,7 +119,7 @@ final class ReportTransparencyTests: XCTestCase {
     }
 }
 
-final class IllustratorSettingsTests: XCTestCase {
+final class IllustratorSettingsTests: CleanerTestCase {
     private func setup() throws -> (FakeHome, URL) {
         let home = try FakeHome()
         let apps = home.path("Apps")
@@ -178,7 +178,7 @@ final class IllustratorSettingsTests: XCTestCase {
     }
 }
 
-final class DeepDrillDownTests: XCTestCase {
+final class DeepDrillDownTests: CleanerTestCase {
     func testSecondLevelOfBigFoldersIsListed() throws {
         let home = try FakeHome()
         try home.makeFile("Lib/Preferences/Settings28/cache/blob.bin", bytes: 400_000)
@@ -201,13 +201,13 @@ final class DeepDrillDownTests: XCTestCase {
             appVersion: "1", dryRun: true, macOSVersion: "26", architecture: "arm64", fullDiskAccess: true, disk: nil,
             projectRoots: [], fileSettings: nil, groups: [], results: [], selectedIDs: [], ruleBlocks: [:],
             blockReason: { _, _ in nil }, apps: [], survey: [section], home: home.url))
-        XCTAssertTrue(text.contains("      └ 4,5 GB  Adobe Illustrator 28 Settings"), text)
-        XCTAssertTrue(text.contains("          └ 4 GB  cache"), text)
+        XCTAssertTrue(text.contains("      └ 4,5 ГБ  Adobe Illustrator 28 Settings"), text)
+        XCTAssertTrue(text.contains("          └ 4 ГБ  cache"), text)
     }
 }
 
 /// Наскрізна перевірка: від скану до «вибрано за замовчуванням». Особисте не може вибратись саме.
-final class EndToEndDefaultSelectionTests: XCTestCase {
+final class EndToEndDefaultSelectionTests: CleanerTestCase {
     func testNothingPersonalIsSelectedAutomaticallyAfterAFullScan() async throws {
         let home = try FakeHome()
         // Інсталятори, великі файли, дублікати, бекап iPhone, програма, кеш Chrome-подібного вигляду.
@@ -252,7 +252,7 @@ final class EndToEndDefaultSelectionTests: XCTestCase {
     }
 }
 
-final class SelectionClassificationTests: XCTestCase {
+final class SelectionClassificationTests: CleanerTestCase {
     private func entry(_ home: FakeHome, _ name: String, rule: String, scope: EntryScope = .home) -> Entry {
         var entry = Entry(ruleID: rule, url: home.path("Documents/\(name)"), scope: scope)
         entry.measurement = DiskUsage(bytes: 100_000_000, fileCount: 1, lastModified: Date().addingTimeInterval(-86_400), hadErrors: false)

@@ -41,21 +41,23 @@ CLEANER: HOW TO INSTALL AND OPEN
    Disk Access. The app shows how to do it on first launch. It is optional:
    everything else works without it. After an update macOS may ask again.
 
-NOTE: the app interface is currently in Ukrainian. English localization is planned.
+LANGUAGE: the interface is in English or Ukrainian. It follows your Mac's
+language; switch it any time with the globe button in the sidebar.
 
 HOW TO SEND A DIAGNOSTIC REPORT (helps improve the rules for your apps)
-1. Open Cleaner and wait until "Сканую…" at the bottom left disappears.
-2. Switch on the "Пробний запуск" (dry run) toggle at the bottom and press
-   "Перевірити" (Check). Nothing is deleted.
+1. Open Cleaner and wait until "Scanning…" at the bottom left disappears.
+2. Switch on the "Dry run" toggle at the bottom and press "Check".
+   Nothing is deleted.
 3. Wait a minute or two while the report is generated.
-4. Click "Поділитися…" (Share) and send the file, or attach it to an issue at
-   https://github.com/pavlogrinchenkoo/clean_my_mac_free/issues
-   The file contains file and app names from your Mac: please read it first.
+4. Click "Share…" and send the file to the maintainer privately, or attach it
+   to an issue at https://github.com/pavlogrinchenkoo/clean_my_mac_free/issues
+   The file contains names of files, folders and apps from your Mac. Read it
+   first; issues on GitHub are PUBLIC, so remove anything private before posting.
 
 IMPORTANT: Cleaner deletes files. Personal files, duplicates, iPhone backups and
 apps are never selected automatically and are moved to the Trash (you can restore
 them). Caches are deleted permanently. Always do a dry run first.
-Use at your own risk; the software is provided as is, without warranty.
+Use at your own risk; the software is provided as is, without warranty (MIT license).
 
 Source code and updates: https://github.com/pavlogrinchenkoo/clean_my_mac_free
 TXT

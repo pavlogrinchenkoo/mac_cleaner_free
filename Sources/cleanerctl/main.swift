@@ -4,14 +4,10 @@ import Foundation
 // cleanerctl scan                      — показати, що можна почистити
 // cleanerctl clean                     — пробний запуск (нічого не видаляє)
 // cleanerctl clean --yes               — справді видалити те, що вибрано за замовчуванням
-// cleanerctl clean --yes --risk all    — разом з 🟡 обережними (крім тих, що потребують пароля)
+// cleanerctl clean --yes --risk all    — разом з 🟡 обережними (крім того, що потребує пароля, та особистих файлів, бекапів і програм)
 // cleanerctl clean --rule <id> ...     — лише вказані правила (усе, що можна)
 // cleanerctl diagnose [--out файл]     — повний пробний запуск + діагностичний файл (для налаштування правил)
 // Додатково: --top N, --root <папка> (папки проєктів), --min-size <МБ> (великі файли), --no-files
-
-func format(_ bytes: Int64) -> String {
-    ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
-}
 
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8))
@@ -24,7 +20,7 @@ func values(for flag: String, in args: [String]) -> [String] {
 
 let args = Array(CommandLine.arguments.dropFirst())
 guard let command = args.first, ["scan", "clean", "diagnose"].contains(command) else {
-    fail("Використання: cleanerctl scan | clean [--yes] [--risk safe|all] [--rule <id>]... | diagnose [--out файл]\n  додатково: --root <папка>  --min-size <МБ>  --top N  --no-files")
+    fail(L("Usage: cleanerctl scan | clean [--yes] [--risk safe|all] [--rule <id>]... | diagnose [--out file]\n  extra: --root <folder>  --min-size <MB>  --top N  --no-files"))
 }
 
 let confirm = args.contains("--yes")
@@ -43,7 +39,7 @@ if !args.contains("--no-files") {
 }
 
 let ruleSet: RuleSet
-do { ruleSet = try RuleLoader.load() } catch { fail("Не вдалося прочитати правила: \(error)") }
+do { ruleSet = try RuleLoader.load() } catch { fail(L("Could not read the rules: %@", "\(error)")) }
 
 let scanner = DiskScanner(ruleSet: ruleSet, projectRoots: projectRoots, fileSettings: fileSettings)
 var results: [String: RuleResult] = [:]
@@ -93,7 +89,7 @@ let orderedIDs = order.enumerated().sorted { lhs, rhs in
 
 @MainActor func ageText(_ entry: Entry) -> String {
     guard let date = entry.measurement?.lastModified else { return "" }
-    return "  (\(entry.ageLabel ?? "змінено") \(Int(Date().timeIntervalSince(date) / 86_400)) дн. тому)"
+    return L("  (%@ %ld days ago)", entry.ageLabel ?? L("modified"), Int(Date().timeIntervalSince(date) / 86_400))
 }
 
 /// Те, що UI вибрав би за замовчуванням.
@@ -119,27 +115,27 @@ if command == "scan" {
         }
         let icon = rule.risk == .safe ? "🟢" : "🟡"
         let admin = rule.requiresAdmin ? " 🔑" : ""
-        let trash = rule.moveToTrash ? " 🗑→Кошик" : ""
-        let blockNote = ruleBlocks[rule.id].map { "  [заблоковано: \($0)]" } ?? ""
-        print("\(icon) \(rule.title)\(admin)\(trash)  \(format(result.entries.reduce(Int64(0)) { $0 + $1.bytes }))\(blockNote)")
+        let trash = rule.moveToTrash ? L(" 🗑→Trash") : ""
+        let blockNote = ruleBlocks[rule.id].map { L("  [blocked: %@]", $0) } ?? ""
+        print("\(icon) \(rule.title)\(admin)\(trash)  \(Loc.bytes(result.entries.reduce(Int64(0)) { $0 + $1.bytes }))\(blockNote)")
         if let error = result.accessError { print("     ⚠︎ \(error)") }
         let shown = result.entries.sorted(by: { $0.bytes > $1.bytes }).filter { $0.bytes > 0 || $0.lockedReason != nil }
         for entry in shown.prefix(topN) {
             let note = blockReason(entry, rule).map { "  [\($0)]" } ?? ""
             let mark = DiskScanner.isSelectedByDefault(entry, rule: rule) && note.isEmpty ? "✓" : " "
-            let size = entry.measurement == nil ? "—" : format(entry.bytes)
+            let size = entry.measurement == nil ? "—" : Loc.bytes(entry.bytes)
             let sub = entry.subtitle.flatMap { $0.isEmpty ? nil : "  · \($0)" } ?? ""
             print("   \(mark) \(size.padding(toLength: 10, withPad: " ", startingAt: 0))  \(entry.name)\(sub)\(ageText(entry))\(note)")
         }
         if shown.count > topN {
             let rest = shown.dropFirst(topN)
-            print("     \(format(rest.reduce(Int64(0)) { $0 + $1.bytes }).padding(toLength: 10, withPad: " ", startingAt: 0))  ... ще \(rest.count) дрібніших")
+            print("     \(Loc.bytes(rest.reduce(Int64(0)) { $0 + $1.bytes }).padding(toLength: 10, withPad: " ", startingAt: 0))  \(L("... %ld more smaller ones", rest.count))")
         }
     }
-    print("\nВибрано за замовчуванням (✓): \(format(totalDefault))   Решта на твій вибір: \(format(totalOptional))")
-    print("Папки проєктів: \(projectRoots.isEmpty ? "не знайдено (додай --root <папка>)" : projectRoots.map { $0.path.replacingOccurrences(of: home.path, with: "~") }.joined(separator: ", "))")
+    print(L("\nSelected by default (✓): %@   The rest is up to you: %@", Loc.bytes(totalDefault), Loc.bytes(totalOptional)))
+    print(L("Project folders: %@", projectRoots.isEmpty ? L("not found (add --root <folder>)") : projectRoots.map { $0.path.replacingOccurrences(of: home.path, with: "~") }.joined(separator: ", ")))
     if let disk = DiskInfo.current() {
-        print("Диск: вільно \(format(disk.freeBytes)) з \(format(disk.totalBytes))")
+        print(L("Disk: %@ free of %@", Loc.bytes(disk.freeBytes), Loc.bytes(disk.totalBytes)))
     }
     exit(0)
 }
@@ -149,7 +145,7 @@ if command == "diagnose" {
     let engine = CleanEngine(safety: scanner.safety)
     let report = engine.clean(entries: selected, rules: allRules, dryRun: true)
 
-    FileHandle.standardError.write(Data("… Збираю карту зайнятого місця (до кількох хвилин)\n".utf8))
+    FileHandle.standardError.write(Data((L("… Collecting the disk usage map (up to a few minutes)") + "\n").utf8))
     let survey = DiskSurvey.run(home: home) { done, total in
         FileHandle.standardError.write(Data("… \(done)/\(total)\r".utf8))
     }
@@ -170,12 +166,12 @@ if command == "diagnose" {
 
     if let out = values(for: "--out", in: args).first {
         let url = URL(fileURLWithPath: (out as NSString).expandingTildeInPath)
-        do { try text.write(to: url, atomically: true, encoding: .utf8) } catch { fail("Не вдалося записати \(url.path): \(error)") }
-        print("Діагностику записано: \(url.path) (\(text.utf8.count / 1024) КБ)")
+        do { try text.write(to: url, atomically: true, encoding: .utf8) } catch { fail(L("Could not write %@: %@", url.path, "\(error)")) }
+        print(L("Diagnostics written: %@ (%ld KB)", url.path, text.utf8.count / 1024))
     } else if let url = DiagnosticReport.write(text, home: home) {
-        print("Діагностику записано: \(url.path) (\(text.utf8.count / 1024) КБ)")
+        print(L("Diagnostics written: %@ (%ld KB)", url.path, text.utf8.count / 1024))
     } else {
-        fail("Не вдалося записати діагностику")
+        fail(L("Could not write the diagnostics"))
     }
     exit(0)
 }
@@ -190,7 +186,8 @@ for id in orderedIDs {
         if !onlyRules.isEmpty {
             take = onlyRules.contains(rule.id)
         } else if includeAll {
-            take = !rule.requiresAdmin
+            // Особисті файли, бекапи й програми лише явно: `--rule <id>`.
+            take = !rule.requiresAdmin && ![EntryScope.userFile, .backup, .application].contains(entry.scope)
         } else {
             take = DiskScanner.isSelectedByDefault(entry, rule: rule)
         }
@@ -201,8 +198,8 @@ for id in orderedIDs {
 let total = selected.reduce(Int64(0)) { $0 + $1.bytes }
 let needsPassword = selected.contains { $0.scope == .system || $0.needsAdmin }
 print(confirm
-    ? "Виконую для \(selected.count) елементів (\(format(total)))\(needsPassword ? ", буде запит пароля адміна" : "")..."
-    : "ПРОБНИЙ ЗАПУСК: \(selected.count) елементів (\(format(total))). Нічого не змінюю; додай --yes, щоб виконати.")
+    ? L("Running for %@ (%@)%@...", Loc.itemCount(selected.count), Loc.bytes(total), needsPassword ? L(", an administrator password will be requested") : "")
+    : L("DRY RUN: %@ (%@). Nothing is changed; add --yes to run it for real.", Loc.itemCount(selected.count), Loc.bytes(total)))
 
 let before = DiskInfo.current()
 let engine = CleanEngine(safety: scanner.safety)
@@ -210,10 +207,10 @@ let report = engine.clean(entries: selected, rules: allRules, dryRun: !confirm) 
     if !current.isEmpty { print("[\(done + 1)/\(total)] \(current)") }
 }
 
-print("\n\(confirm ? "Звільнено" : "Було б звільнено"): \(format(report.freedBytes))   \(confirm ? "У Кошику" : "Було б у Кошику"): \(format(report.trashedBytes))")
-for item in report.skipped { if case .skipped(let reason) = item.outcome { print("пропущено (\(reason)): \(item.path)") } }
-for item in report.failures { if case .failed(let reason) = item.outcome { print("ПОМИЛКА (\(reason)): \(item.path)") } }
-if let log = report.logURL { print("Лог: \(log.path)") }
+print("\n\(confirm ? L("Freed") : L("Would free")): \(Loc.bytes(report.freedBytes))   \(confirm ? L("In Trash") : L("Would be in Trash")): \(Loc.bytes(report.trashedBytes))")
+for item in report.skipped { if case .skipped(let reason) = item.outcome { print(L("skipped (%@): %@", reason, item.path)) } }
+for item in report.failures { if case .failed(let reason) = item.outcome { print(L("ERROR (%@): %@", reason, item.path)) } }
+if let log = report.logURL { print(L("Log: %@", log.path)) }
 if confirm, let before, let after = DiskInfo.current() {
-    print("Вільно на диску: \(format(before.freeBytes)) → \(format(after.freeBytes))")
+    print(L("Free on disk: %@ → %@", Loc.bytes(before.freeBytes), Loc.bytes(after.freeBytes)))
 }

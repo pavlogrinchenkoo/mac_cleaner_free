@@ -6,8 +6,6 @@ public struct ArtifactKind: Sendable {
     public let id: String
     /// Назви тек, що належать до цього типу.
     public let names: [String]
-    public let title: String
-    public let detail: String
     /// Поруч з текою (в її батьківській) має лежати один із цих файлів (glob). Без цього тека не вважається артефактом.
     public let markers: [String]
     /// Усередині теки має бути один із цих файлів.
@@ -20,29 +18,19 @@ public struct ArtifactKind: Sendable {
     public static let all: [ArtifactKind] = [
         ArtifactKind(
             id: "project.node_modules", names: ["node_modules"],
-            title: "node_modules",
-            detail: "Залежності JavaScript-проєктів. Повертаються командою `npm install` (чи `yarn`, `pnpm`).",
             markers: ["package.json"], innerMarkers: [], risk: .safe, autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.pods", names: ["Pods"],
-            title: "CocoaPods (Pods)",
-            detail: "Залежності iOS/macOS-проєктів. Повертаються командою `pod install`.",
             markers: ["Podfile"], innerMarkers: [], risk: .safe, autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.dart", names: [".dart_tool"],
-            title: "Dart / Flutter (.dart_tool)",
-            detail: "Кеш Dart і Flutter. Повертається командою `flutter pub get`.",
             markers: ["pubspec.yaml"], innerMarkers: [], risk: .safe, autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.gradle", names: [".gradle"],
-            title: "Gradle-кеш проєкту (.gradle)",
-            detail: "Кеш Gradle всередині проєкту. Відновиться при наступній збірці.",
             markers: ["settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts"],
             innerMarkers: [], risk: .safe, autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.build", names: ["build"],
-            title: "Результати збірки (build)",
-            detail: "Android, Flutter, Xcode: те, що створила збірка. Перезбирається при наступному білді. Показую лише там, де поруч є файли проєкту.",
             markers: [
                 "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
                 "pubspec.yaml", "*.xcodeproj", "*.xcworkspace", "CMakeLists.txt",
@@ -50,24 +38,16 @@ public struct ArtifactKind: Sendable {
             innerMarkers: [], risk: .safe, autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.frameworks", names: [".next", ".nuxt", ".turbo", ".parcel-cache", ".svelte-kit", ".angular"],
-            title: "Кеші фреймворків (.next, .nuxt, .turbo…)",
-            detail: "Кеші Next.js, Nuxt, Turbo, Parcel, SvelteKit, Angular. Відновляться при запуску dev-сервера чи збірки.",
             markers: ["package.json"], innerMarkers: [], risk: .safe, autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.target", names: ["target"],
-            title: "Rust / Maven (target)",
-            detail: "Результати збірки Cargo чи Maven. Перезбираються командою `cargo build` / `mvn package`.",
             markers: ["Cargo.toml", "pom.xml", "build.sbt"], innerMarkers: [], risk: .safe,
             autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.swiftpm", names: [".build"],
-            title: "Swift-пакети (.build)",
-            detail: "Результати збірки Swift-пакета. Перезбираються командою `swift build`.",
             markers: ["Package.swift"], innerMarkers: [], risk: .safe, autoSelectOlderThanDays: defaultIdleDays),
         ArtifactKind(
             id: "project.venv", names: [".venv", "venv"],
-            title: "Python venv",
-            detail: "Віртуальні середовища Python. Обережно: пакети, які ти ставив вручну, доведеться поставити знову.",
             markers: [], innerMarkers: ["pyvenv.cfg"], risk: .careful, autoSelectOlderThanDays: nil),
     ]
 
@@ -79,6 +59,37 @@ public struct ArtifactKind: Sendable {
 
     public static func kind(forDirectoryNamed name: String) -> ArtifactKind? { byName[name] }
     public static func isArtifactName(_ name: String) -> Bool { byName[name] != nil }
+
+    /// Назва й опис залежать від мови, тому обчислюються при кожному зверненні (а не зберігаються в реєстрі).
+    public var title: String {
+        switch id {
+        case "project.gradle": L("Project Gradle cache (.gradle)")
+        case "project.build": L("Build output (build)")
+        case "project.frameworks": L("Framework caches (.next, .nuxt, .turbo…)")
+        case "project.swiftpm": L("Swift packages (.build)")
+        case "project.node_modules": "node_modules"
+        case "project.pods": "CocoaPods (Pods)"
+        case "project.dart": "Dart / Flutter (.dart_tool)"
+        case "project.target": "Rust / Maven (target)"
+        case "project.venv": "Python venv"
+        default: id
+        }
+    }
+
+    public var detail: String {
+        switch id {
+        case "project.node_modules": L("JavaScript project dependencies. Restored with `npm install` (or `yarn`, `pnpm`).")
+        case "project.pods": L("iOS/macOS project dependencies. Restored with `pod install`.")
+        case "project.dart": L("Dart and Flutter cache. Restored with `flutter pub get`.")
+        case "project.gradle": L("Gradle cache inside the project. Rebuilt on the next build.")
+        case "project.build": L("Android, Flutter, Xcode: whatever the build produced. Rebuilt on the next build. Shown only where project files are next to it.")
+        case "project.frameworks": L("Next.js, Nuxt, Turbo, Parcel, SvelteKit and Angular caches. Restored when you start the dev server or build.")
+        case "project.target": L("Cargo or Maven build output. Rebuilt with `cargo build` / `mvn package`.")
+        case "project.swiftpm": L("Swift package build output. Rebuilt with `swift build`.")
+        case "project.venv": L("Python virtual environments. Careful: packages you installed by hand will need to be installed again.")
+        default: ""
+        }
+    }
 
     /// Синтетичне правило для інтерфейсу й рушія.
     public var rule: CleanupRule {
@@ -122,7 +133,7 @@ public enum ProjectScanner {
                 let entry = Entry(
                     ruleID: kind.id, url: url,
                     name: projectName(parent: url.deletingLastPathComponent(), root: root),
-                    subtitle: url.lastPathComponent, ageLabel: "активність", scope: .project
+                    subtitle: url.lastPathComponent, ageLabel: L("activity"), scope: .project
                 )
                 byKind[kind.id, default: []].append(entry)
             }

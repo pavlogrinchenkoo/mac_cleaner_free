@@ -30,9 +30,9 @@ struct TriStateBox: View {
 
     private var label: String {
         switch state {
-        case .off: "Не вибрано"
-        case .mixed: "Вибрано частково"
-        case .on: "Вибрано"
+        case .off: L("Not selected")
+        case .mixed: L("Partially selected")
+        case .on: L("Selected")
         }
     }
 }
@@ -41,7 +41,7 @@ struct RiskBadge: View {
     let risk: Risk
 
     var body: some View {
-        Text(risk == .safe ? "Безпечно" : "Обережно")
+        Text(risk == .safe ? L("Safe") : L("Careful"))
             .font(.caption.weight(.medium))
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
@@ -62,16 +62,16 @@ struct DiskCard: View {
                     Text(Format.bytes(disk.freeBytes))
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(low ? Color.red : Color.primary)
-                    Text("вільно")
+                    Text(L("free"))
                         .foregroundStyle(.secondary)
                 }
                 ProgressView(value: disk.usedFraction)
                     .tint(low ? .red : .accentColor)
-                Text("Зайнято \(Format.bytes(disk.usedBytes)) з \(Format.bytes(disk.totalBytes))")
+                Text(L("Used %@ of %@", Format.bytes(disk.usedBytes), Format.bytes(disk.totalBytes)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Text("Диск недоступний").foregroundStyle(.secondary)
+                Text(L("Disk unavailable")).foregroundStyle(.secondary)
             }
         }
         .padding(12)
@@ -92,5 +92,31 @@ struct SizeBar: View {
             }
         }
         .frame(height: 4)
+    }
+}
+
+/// Вибір мови інтерфейсу: «Системна», English, Українська. Назви мов показуємо їхніми ж мовами.
+struct LanguageMenu: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Menu {
+            Picker(L("Language"), selection: Binding(
+                get: { model.languageChoice },
+                set: { model.setLanguageChoice($0) }
+            )) {
+                ForEach(AppModel.LanguageChoice.allCases) { choice in
+                    Text(choice.title).tag(choice)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            Label(model.language.nativeName, systemImage: "globe")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(model.phase == .cleaning)
+        .help(L("Language"))
     }
 }

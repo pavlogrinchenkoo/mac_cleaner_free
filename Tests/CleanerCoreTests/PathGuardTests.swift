@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class PathGuardTests: XCTestCase {
+final class PathGuardTests: CleanerTestCase {
     func testAllowsKnownCachePaths() throws {
         let home = try FakeHome()
         let guardian = PathGuard(home: home.url)

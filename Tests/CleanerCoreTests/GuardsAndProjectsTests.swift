@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class ArtifactGuardTests: XCTestCase {
+final class ArtifactGuardTests: CleanerTestCase {
     private func make() throws -> (FakeHome, ArtifactGuard) {
         let home = try FakeHome()
         return (home, ArtifactGuard(home: home.url, roots: [home.path("Documents/Projects")]))
@@ -89,7 +89,7 @@ final class ArtifactGuardTests: XCTestCase {
     }
 }
 
-final class SystemPathGuardTests: XCTestCase {
+final class SystemPathGuardTests: CleanerTestCase {
     func testDefaultRootsAreMinimal() {
         XCTAssertEqual(SystemPathGuard.defaultRoots, ["/Library/Caches", "/Library/Logs"])
     }
@@ -116,7 +116,7 @@ final class SystemPathGuardTests: XCTestCase {
     }
 }
 
-final class ProjectScannerTests: XCTestCase {
+final class ProjectScannerTests: CleanerTestCase {
     private func discover(_ home: FakeHome) -> [String: [Entry]] {
         let guardian = ArtifactGuard(home: home.url, roots: [home.path("Projects")])
         return Dictionary(uniqueKeysWithValues: ProjectScanner.discover(guard: guardian).map { ($0.id, $0.entries) })
@@ -211,7 +211,7 @@ final class ProjectScannerTests: XCTestCase {
     }
 }
 
-final class DefaultSelectionTests: XCTestCase {
+final class DefaultSelectionTests: CleanerTestCase {
     private func entry(daysAgo: Double?) -> Entry {
         var entry = Entry(ruleID: "r", url: URL(fileURLWithPath: "/tmp/x"))
         entry.measurement = DiskUsage(

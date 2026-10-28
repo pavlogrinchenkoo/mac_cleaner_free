@@ -22,24 +22,24 @@ public enum GuardError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .outsideHome(let p): "Поза домашньою папкою: \(p)"
-        case .tooShallow(let p): "Занадто високий рівень: \(p)"
-        case .protectedPath(let p): "Захищений шлях: \(p)"
-        case .insideDenied(let p): "Особисті дані, не чіпаю: \(p)"
-        case .escapesHome(let p): "Шлях веде за межі домашньої папки через symlink: \(p)"
-        case .invalidName(let p): "Некоректний шлях: \(p)"
-        case .notProjectArtifact(let p): "Це не артефакт проєкту: \(p)"
-        case .outsideProjectRoots(let p): "Поза папками проєктів: \(p)"
-        case .nestedArtifact(let p): "Вкладений артефакт, не чіпаю: \(p)"
-        case .markerMissing(let p): "Поруч немає файлу проєкту (package.json, Podfile…): \(p)"
-        case .notAllowedSystemPath(let p): "Системний шлях не з дозволеного списку: \(p)"
-        case .invalidIdentifier(let id): "Некоректний ідентифікатор: \(id)"
-        case .outsideFileRoots(let p): "Поза папками користувача (Downloads, Desktop…): \(p)"
-        case .protectedContent(let p): "Прихований, пакет чи службова тека: \(p)"
-        case .notRegularFile(let p): "Це не звичайний файл: \(p)"
-        case .invalidBackup(let p): "Це не резервна копія iPhone: \(p)"
-        case .invalidApplication(let p): "Це не сторонній застосунок з /Applications: \(p)"
-        case .foreignLeftover(let p): "Залишок не належить цьому застосунку: \(p)"
+        case .outsideHome(let p): L("Outside the home folder: %@", p)
+        case .tooShallow(let p): L("Path is too shallow: %@", p)
+        case .protectedPath(let p): L("Protected path: %@", p)
+        case .insideDenied(let p): L("Personal data, leaving it alone: %@", p)
+        case .escapesHome(let p): L("Path leaves the home folder through a symlink: %@", p)
+        case .invalidName(let p): L("Invalid path: %@", p)
+        case .notProjectArtifact(let p): L("Not a project artifact: %@", p)
+        case .outsideProjectRoots(let p): L("Outside the project folders: %@", p)
+        case .nestedArtifact(let p): L("Nested artifact, leaving it alone: %@", p)
+        case .markerMissing(let p): L("No project file next to it (package.json, Podfile…): %@", p)
+        case .notAllowedSystemPath(let p): L("System path is not on the allowed list: %@", p)
+        case .invalidIdentifier(let id): L("Invalid identifier: %@", id)
+        case .outsideFileRoots(let p): L("Outside the user folders (Downloads, Desktop…): %@", p)
+        case .protectedContent(let p): L("Hidden item, package or system folder: %@", p)
+        case .notRegularFile(let p): L("Not a regular file: %@", p)
+        case .invalidBackup(let p): L("Not an iPhone backup: %@", p)
+        case .invalidApplication(let p): L("Not a third-party app from /Applications: %@", p)
+        case .foreignLeftover(let p): L("The leftover does not belong to this app: %@", p)
         }
     }
 }
@@ -50,21 +50,27 @@ public struct PathGuard: Sendable {
     public let home: URL
 
     /// Самі ці шляхи видаляти не можна (їхній вміст — можна, якщо правило так каже).
-    private let protectedExact: [String]
+    private let protectedExact: Set<String>
     /// Ні ці шляхи, ні нічого всередині них чіпати не можна.
     private let deniedTrees: [String]
     /// Точкові винятки з заборон: повний відносний шлях має збігтися з одним із шаблонів (regex з якорями).
     /// Дозволяють видалити саму теку, але не нічого всередині чи поруч.
     private let allowedExceptions: [String]
 
+    /// Файлова система macOS за замовчуванням не розрізняє регістр (`~/documents` = `~/Documents`), тож усі
+    /// порівняння з переліками заборон ведемо в нормалізованому нижньому регістрі.
+    static func fold(_ path: String) -> String {
+        path.precomposedStringWithCanonicalMapping.lowercased()
+    }
+
     public init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.home = home.standardizedFileURL
-        protectedExact = [
+        protectedExact = Set([
             "", "Library", "Library/Caches", "Library/Logs", "Library/Application Support",
             "Library/Developer", "Library/Containers", "Library/Group Containers",
             "Library/Preferences", "Library/LaunchAgents", "Library/Fonts",
             ".Trash", ".config", ".local", ".cache",
-        ]
+        ].map(Self.fold))
         deniedTrees = [
             "Documents", "Desktop", "Downloads", "Pictures", "Movies", "Music", "Public",
             "Applications", "Library/Mobile Documents", "Library/CloudStorage",
@@ -73,10 +79,21 @@ public struct PathGuard: Sendable {
             "Library/Application Support/MobileSync", "Library/Application Support/AddressBook",
             "Library/Application Support/CloudDocs", "Library/Photos",
             ".ssh", ".gnupg", ".aws", ".kube",
-        ]
+        ].map(Self.fold)
         allowedExceptions = [
             #"^Library/Preferences/Adobe Illustrator [0-9]+ Settings$"#,
         ]
+    }
+
+    /// Перевірка шляху відносно домашньої папки проти переліків заборон (без урахування регістру).
+    /// Винятки (`allowedExceptions`) навмисно чутливі до регістру: інший регістр лишається забороненим.
+    private func checkPolicy(relative: String, path: String) throws {
+        if allowedExceptions.contains(where: { relative.range(of: $0, options: .regularExpression) != nil }) { return }
+        let folded = Self.fold(relative)
+        if protectedExact.contains(folded) { throw GuardError.protectedPath(path) }
+        for denied in deniedTrees where folded == denied || folded.hasPrefix(denied + "/") {
+            throw GuardError.insideDenied(path)
+        }
     }
 
     /// Кидає помилку, якщо видаляти `url` не можна.
@@ -92,21 +109,20 @@ public struct PathGuard: Sendable {
 
         let components = relative.split(separator: "/")
         guard components.count >= 2 else { throw GuardError.tooShallow(path) }
-        let isException = allowedExceptions.contains { relative.range(of: $0, options: .regularExpression) != nil }
-        if !isException {
-            if protectedExact.contains(relative) { throw GuardError.protectedPath(path) }
-            for denied in deniedTrees where relative == denied || relative.hasPrefix(denied + "/") {
-                throw GuardError.insideDenied(path)
-            }
-        }
+        try checkPolicy(relative: relative, path: path)
 
-        // Батьківська папка після розкриття symlink-ів теж має лишатися в домашній.
+        // Батьківська папка після розкриття symlink-ів теж має лишатися в домашній...
         let realHome = home.resolvingSymlinksInPath().path
         let realParent = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath().path
         let realPrefix = realHome.hasSuffix("/") ? realHome : realHome + "/"
         guard realParent == realHome || realParent.hasPrefix(realPrefix) else {
             throw GuardError.escapesHome(path)
         }
+        // ...і не вести у захищене місце: `Library/Caches/x -> ~/Documents/Work` не дає видалити `x/Cache`.
+        // Сам елемент може бути symlink-ом: видаляється саме посилання, тому його останню частину не розкриваємо.
+        let realRelative = (realParent == realHome ? "" : String(realParent.dropFirst(realPrefix.count)) + "/")
+            + url.standardizedFileURL.lastPathComponent
+        try checkPolicy(relative: realRelative, path: path)
     }
 
     public func isAllowed(_ url: URL) -> Bool {

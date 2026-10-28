@@ -92,12 +92,12 @@ public enum DiskSurvey {
         // «Решта» не повторює вже розгорнуті теки.
         let expanded = Set(main.map { $0.1.standardizedFileURL.path })
         let cloud = [
-            library.appendingPathComponent("Mobile Documents").path: "iCloud Drive: вміст не міряю (читання може зависати)",
-            library.appendingPathComponent("CloudStorage").path: "хмарні сховища (Google Drive тощо): вміст не міряю",
+            library.appendingPathComponent("Mobile Documents").path: L("iCloud Drive: contents not measured (reading may hang)"),
+            library.appendingPathComponent("CloudStorage").path: L("cloud storage (Google Drive etc.): contents not measured"),
         ]
         return main.map { SurveyDirectory(title: $0.0, url: $0.1) } + [
-            SurveyDirectory(title: "~/Library (решта)", url: library, skip: expanded, unmeasured: cloud),
-            SurveyDirectory(title: "~ (решта домашньої папки)", url: home, skip: expanded.union([library.path])),
+            SurveyDirectory(title: L("~/Library (the rest)"), url: library, skip: expanded, unmeasured: cloud),
+            SurveyDirectory(title: L("~ (the rest of the home folder)"), url: home, skip: expanded.union([library.path])),
         ]
     }
 
@@ -157,7 +157,7 @@ public enum DiskSurvey {
                 }
             } catch {
                 if (error as NSError).code != NSFileReadNoSuchFileError {
-                    errors[index] = FullDiskAccess.isDenied(error) ? "немає доступу (потрібен Full Disk Access)" : error.localizedDescription
+                    errors[index] = FullDiskAccess.isDenied(error) ? L("no access (Full Disk Access required)") : error.localizedDescription
                 }
             }
         }
@@ -201,7 +201,7 @@ public enum DiskSurvey {
         // Те, що не встигли чи перервали, лишаємо у звіті з позначкою, а не губимо.
         var results = collector.snapshot()
         for (index, job) in allJobs.enumerated() where !finished.contains(index) {
-            results[job.section].append(SurveyItem(name: job.name, bytes: 0, lastModified: nil, incomplete: true, note: "не встиг (перервано чи завис)"))
+            results[job.section].append(SurveyItem(name: job.name, bytes: 0, lastModified: nil, incomplete: true, note: L("did not finish (interrupted or hung)")))
         }
         // Друга фаза: що всередині найбільших тек (наприклад, чому «Preferences» важить 20 ГБ).
         var children: [String: [SurveyItem]] = [:]
@@ -361,6 +361,27 @@ public struct DiagnosticApp: Sendable {
     public let version: String
 }
 
+/// Markers and headings of the report that other code (the self-check, the tests) searches for. They live in one
+/// place so the report and its readers always agree, whatever the interface language is.
+public enum DiagnosticMarkers {
+    public static var auto: String { L("[✓ auto]") }
+    public static var manualOn: String { L("[✓ MANUAL]") }
+    public static var manualOff: String { L("[✗ MANUAL OFF]") }
+    /// Not translated: these three are the same in every language.
+    public static var unexplained: String { "[✓ ???]" }
+    public static var notSelected: String { "[  ]" }
+    public static var blocked: String { "[🔒]" }
+
+    public static var summaryTitle: String { L("SUMMARY") }
+    public static var summaryHeader: String { "== \(summaryTitle) ==" }
+    public static var surveyTitle: String { L("DISK USAGE MAP") }
+    public static var surveyHeader: String { "== \(surveyTitle) ==" }
+    public static var installedAppsTitle: String { L("INSTALLED APPS") }
+    public static func installedAppsHeader(count: Int) -> String { "== \(installedAppsTitle) (\(count)) ==" }
+    /// A phrase of the "selected for an unknown reason" summary line (the line is written in `render`).
+    public static var unexplainedPhrase: String { L("for an UNKNOWN reason") }
+}
+
 public enum DiagnosticReport {
     /// Встановлені програми (до двох рівнів вглиб: Adobe кладе програми в підпапки) без розкриття вмісту.
     public static func installedApps(roots: [URL]) -> [DiagnosticApp] {
@@ -400,8 +421,7 @@ public enum DiagnosticReport {
         let directory = home.appendingPathComponent("Library/Application Support/Cleaner/logs")
         let url = directory.appendingPathComponent(fileName(for: date, dryRun: dryRun))
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try text.write(to: url, atomically: true, encoding: .utf8)
+            try PrivateStorage.write(text, to: url)
             return url
         } catch {
             return nil
@@ -410,32 +430,53 @@ public enum DiagnosticReport {
 
     private static let maxEntriesPerRule = 600
 
+    /// Останній прохід по готовому звіту: прибирає те, що ідентифікує людину чи її пристрої, навіть якщо воно
+    /// потрапило в текст не через `short()`: ім'я користувача в `/Users/<ім'я>/…` та ідентифікатори пристроїв iPhone/iPad
+    /// (UDID резервних копій: `00008110-001A2B3C4D5E6F78` або 40 hex-символів).
+    static func redactPersonalIdentifiers(_ text: String) -> String {
+        let rules: [(pattern: String, template: String)] = [
+            (#"/Users/(?!Shared(?:/|\s|$))[^/\s«»]+"#, "/Users/<user>"),
+            (#"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}\b"#, "<device-id>"),
+            (#"\b[0-9a-f]{40}\b"#, "<device-id>"),
+        ]
+        var result = text
+        for rule in rules {
+            guard let regex = try? NSRegularExpression(pattern: rule.pattern) else { continue }
+            result = regex.stringByReplacingMatches(
+                in: result, range: NSRange(result.startIndex..., in: result), withTemplate: rule.template)
+        }
+        return result
+    }
+
     public static func render(_ input: DiagnosticInput) -> String {
         var out: [String] = []
         let home = input.home
-        func size(_ bytes: Int64) -> String { bytes <= 0 ? "0 КБ" : ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
+        func size(_ bytes: Int64) -> String { Loc.bytes(bytes) }
         func short(_ path: String) -> String { path.hasPrefix(home.path) ? "~" + path.dropFirst(home.path.count) : path }
         func days(_ date: Date?) -> String {
             guard let date else { return "?" }
             let d = Int(input.generatedAt.timeIntervalSince(date) / 86_400)
-            return d <= 0 ? "сьогодні" : "\(d) дн."
+            return d <= 0 ? L("today") : L("%ld days", d)
         }
 
         let stamp = DateFormatter()
         stamp.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        out.append("CLEANER — ДІАГНОСТИКА (\(input.dryRun ? "пробний запуск" : "сканування"))")
-        out.append("Цей файл містить назви й шляхи файлів та програм з цього Mac. Перегляньте його перед відправкою.")
+        out.append(input.dryRun ? L("CLEANER — DIAGNOSTICS (dry run)") : L("CLEANER — DIAGNOSTICS (scan)"))
+        out.append(L("This file contains names and paths of files and apps from this Mac. Please review it before sending."))
         out.append("")
-        out.append("Дата: \(stamp.string(from: input.generatedAt))")
-        out.append("Cleaner: \(input.appVersion)   macOS: \(input.macOSVersion)   Архітектура: \(input.architecture)")
-        out.append("Full Disk Access: \(input.fullDiskAccess ? "є" : "немає")")
+        out.append(L("Date: %@", stamp.string(from: input.generatedAt)))
+        out.append(L("Cleaner: %@   macOS: %@   Architecture: %@", input.appVersion, input.macOSVersion, input.architecture))
+        out.append(input.fullDiskAccess ? L("Full Disk Access: granted") : L("Full Disk Access: not granted"))
         if let disk = input.disk {
-            out.append("Диск: вільно \(size(disk.freeBytes)) з \(size(disk.totalBytes))")
+            out.append(L("Disk: %@ free of %@", size(disk.freeBytes), size(disk.totalBytes)))
         }
-        out.append("Папки проєктів: \(input.projectRoots.isEmpty ? "немає" : input.projectRoots.map { short($0.path) }.joined(separator: ", "))")
+        out.append(input.projectRoots.isEmpty
+            ? L("Project folders: none")
+            : L("Project folders: %@", input.projectRoots.map { short($0.path) }.joined(separator: ", ")))
         if let files = input.fileSettings {
-            out.append("Пошук файлів: \(files.roots.map { short($0.path) }.joined(separator: ", "))")
-            out.append("Пороги: великі від \(size(files.minLargeBytes)), дублікати від \(size(files.minDuplicateBytes)), інсталятори від \(size(files.minInstallerBytes))")
+            out.append(L("File search: %@", files.roots.map { short($0.path) }.joined(separator: ", ")))
+            out.append(L("Thresholds: large from %@, duplicates from %@, installers from %@",
+                         size(files.minLargeBytes), size(files.minDuplicateBytes), size(files.minInstallerBytes)))
         }
 
         // --- Класифікація кожного елемента ---
@@ -476,51 +517,60 @@ public enum DiagnosticReport {
 
         // --- Підсумок ---
         out.append("")
-        out.append("== ПІДСУМОК ==")
-        out.append("Знайдено \(rows.count) елементів (\(size(sum(rows)))) у \(input.results.filter { !$0.entries.isEmpty }.count) правилах.")
-        out.append("Вибрано АВТОМАТИЧНО (за замовчуванням): \(auto.count) елементів, \(size(sum(auto))).")
-        out.append("Додано ВРУЧНУ користувачем: \(manualOn.count) елементів, \(size(sum(manualOn))).")
-        out.append("Знято ВРУЧНУ (програма вибрала б сама): \(manualOff.count) елементів, \(size(sum(manualOff))).")
+        out.append(DiagnosticMarkers.summaryHeader)
+        out.append(L("Found %ld item(s) (%@) in %ld rule(s).", rows.count, size(sum(rows)), input.results.filter { !$0.entries.isEmpty }.count))
+        out.append(L("Selected AUTOMATICALLY (by default): %ld item(s), %@.", auto.count, size(sum(auto))))
+        out.append(L("Added MANUALLY by the user: %ld item(s), %@.", manualOn.count, size(sum(manualOn))))
+        out.append(L("Unselected MANUALLY (the app would have selected it): %ld item(s), %@.", manualOff.count, size(sum(manualOff))))
         if !unexplained.isEmpty {
-            out.append("⚠︎ Вибрано з НЕВІДОМОЇ причини (ні за замовчуванням, ні кліком): \(unexplained.count) елементів, \(size(sum(unexplained))). Це помилка програми.")
+            out.append(L("⚠︎ Selected for an UNKNOWN reason (neither by default nor by a click): %ld item(s), %@. This is an app bug.",
+                         unexplained.count, size(sum(unexplained))))
         }
-        out.append("Не вибрано, бо лише вручну: \(notSelected.count) елементів, \(size(sum(notSelected))).")
+        out.append(L("Not selected because manual-only: %ld item(s), %@.", notSelected.count, size(sum(notSelected))))
         func grouped(_ rows: [Row], reason: (Row) -> String) {
             let byReason = Dictionary(grouping: rows, by: reason)
             for (text, items) in byReason.sorted(by: { sum($0.value) > sum($1.value) }) {
-                out.append("    \(text): \(items.count) елементів, \(size(sum(items)))")
+                out.append(L("    %@: %ld item(s), %@", text, items.count, size(sum(items))))
             }
         }
         grouped(notSelected) { $0.decision.reason }
-        out.append("ЗАБЛОКОВАНО (зараз не можна вибрати): \(blocked.count) елементів, \(size(sum(blocked))).")
+        out.append(L("BLOCKED (cannot be selected right now): %ld item(s), %@.", blocked.count, size(sum(blocked))))
         grouped(blocked) { row in
             if case .blocked(let reason) = row.status { return reason }
             return ""
         }
-        out.append("РАЗОМ ВИБРАНО ЗАРАЗ: \(active.count) елементів: видалити назовсім \(size(sum(activeDelete))), перемістити в Кошик \(size(sum(activeTrash))).")
+        out.append(L("TOTAL SELECTED NOW: %ld item(s): delete permanently %@, move to Trash %@.",
+                         active.count, size(sum(activeDelete)), size(sum(activeTrash))))
         if let report = input.report {
-            let kind = input.dryRun ? "Було б" : "Зроблено"
-            out.append("\(kind): звільнено \(size(report.freedBytes)), у Кошик \(size(report.trashedBytes)); пропущено \(report.skipped.count), помилок \(report.failures.count).")
+            let freed = size(report.freedBytes), trashed = size(report.trashedBytes)
+            out.append(input.dryRun
+                ? L("Would be done: freed %@, to Trash %@; skipped %ld, errors %ld.", freed, trashed, report.skipped.count, report.failures.count)
+                : L("Done: freed %@, to Trash %@; skipped %ld, errors %ld.", freed, trashed, report.skipped.count, report.failures.count))
             for item in report.skipped.prefix(100) {
-                if case .skipped(let reason) = item.outcome { out.append("  пропущено: \(short(item.path)) — \(reason)") }
+                if case .skipped(let reason) = item.outcome { out.append(L("  skipped: %@ — %@", short(item.path), reason)) }
             }
             for item in report.failures.prefix(100) {
-                if case .failed(let reason) = item.outcome { out.append("  помилка: \(short(item.path)) — \(reason)") }
+                if case .failed(let reason) = item.outcome { out.append(L("  error: %@ — %@", short(item.path), reason)) }
             }
         }
 
         // --- Знайдене по групах ---
         let rowsByEntry = Dictionary(rows.map { ($0.entry.id, $0) }, uniquingKeysWith: { first, _ in first })
         out.append("")
-        out.append("== ЗНАЙДЕНЕ (УСЕ, що програма побачила) ==")
-        out.append("Позначки:")
-        out.append("  [✓ авто]            вибрано програмою за замовчуванням")
-        out.append("  [✓ ВРУЧНУ]          вибрав користувач (програма сама б не вибрала)")
-        out.append("  [✗ ЗНЯТО ВРУЧНУ]    програма вибрала б сама, але користувач зняв")
-        out.append("  [  ]                не вибрано (за замовчуванням тут лише вручну; причина в заголовку правила)")
-        out.append("  [✓ ???]             вибрано, але ні за замовчуванням, ні кліком (це була б помилка програми)")
-        out.append("  [🔒]                заблоковано: зараз вибрати не можна (причина вказана: програма запущена, остання версія…)")
-        out.append("Далі: розмір, коли востаннє використовувалось/змінювалось, шлях.")
+        out.append(L("== FOUND (EVERYTHING the app saw) =="))
+        out.append(L("Legend:"))
+        // Пояснення починаються з однієї колонки; емодзі займає два знаки.
+        func legend(_ marker: String, _ meaning: String) {
+            let width = marker.reduce(0) { $0 + (($1.unicodeScalars.first?.value ?? 0) >= 0x1F000 ? 2 : 1) }
+            out.append("  " + marker + String(repeating: " ", count: max(1, 20 - width)) + meaning)
+        }
+        legend(DiagnosticMarkers.auto, L("selected by the app by default"))
+        legend(DiagnosticMarkers.manualOn, L("selected by the user (the app would not have selected it)"))
+        legend(DiagnosticMarkers.manualOff, L("the app would have selected it, but the user unselected it"))
+        legend(DiagnosticMarkers.notSelected, L("not selected (manual-only by default; the reason is in the rule header)"))
+        legend(DiagnosticMarkers.unexplained, L("selected, but neither by default nor by a click (this would be an app bug)"))
+        legend(DiagnosticMarkers.blocked, L("blocked: cannot be selected right now (reason given: app is running, latest version…)"))
+        out.append(L("Then: size, when last used/modified, path."))
         for group in input.groups {
             let results = input.results.filter { $0.rule.group == group.id }
             let visible = results.filter { $0.accessError != nil || $0.entries.contains { $0.bytes > 0 || $0.lockedReason != nil } }
@@ -530,21 +580,23 @@ public enum DiagnosticReport {
             for result in visible {
                 let rule = result.rule
                 let total = result.entries.reduce(Int64(0)) { $0 + $1.bytes }
-                var flags: [String] = [rule.risk == .safe ? "безпечно" : "обережно"]
-                if rule.moveToTrash { flags.append("→ Кошик") }
-                if rule.requiresAdmin { flags.append("пароль") }
-                if !rule.bulkSelectable { flags.append("«вибрати все» вимкнено") }
+                var flags: [String] = [rule.risk == .safe ? L("safe to remove") : L("remove with care")]
+                if rule.moveToTrash { flags.append(L("→ Trash")) }
+                if rule.requiresAdmin { flags.append(L("admin password")) }
+                if !rule.bulkSelectable { flags.append(L("“select all” disabled")) }
                 out.append("")
                 out.append("\(rule.title) [\(rule.id)] — \(size(total)) (\(flags.joined(separator: ", ")))")
                 if let first = result.entries.first {
                     let policy = DiskScanner.defaultDecision(first, rule: rule, now: input.generatedAt)
                     if rule.autoSelectOlderThanDays != nil {
-                        out.append("  автовибір: лише те, що не змінювалось \(rule.autoSelectOlderThanDays!)+ днів")
+                        out.append(L("  auto-select: only what has not changed for %ld+ days", rule.autoSelectOlderThanDays!))
                     } else {
-                        out.append("  автовибір: \(policy.selected ? "так" : "ні") (\(policy.reason))")
+                        out.append(policy.selected
+                            ? L("  auto-select: yes (%@)", policy.reason)
+                            : L("  auto-select: no (%@)", policy.reason))
                     }
                 }
-                if let block = input.ruleBlocks[rule.id] { out.append("  заблоковано правилом: \(block)") }
+                if let block = input.ruleBlocks[rule.id] { out.append(L("  blocked by the rule: %@", block)) }
                 if let error = result.accessError { out.append("  ⚠︎ \(error)") }
 
                 let entries = result.entries.filter { $0.bytes > 0 || $0.lockedReason != nil }.sorted { $0.bytes > $1.bytes }
@@ -553,47 +605,50 @@ public enum DiagnosticReport {
                     let mark: String
                     var why = ""
                     switch row.status {
-                    case .blocked(let reason): mark = "[🔒]"; why = reason
-                    case .auto: mark = "[✓ авто]"
-                    case .manualOn: mark = "[✓ ВРУЧНУ]"
-                    case .manualOff: mark = "[✗ ЗНЯТО ВРУЧНУ]"
-                    case .unexplained: mark = "[✓ ???]"
-                    case .notSelected: mark = "[  ]"
+                    case .blocked(let reason): mark = DiagnosticMarkers.blocked; why = reason
+                    case .auto: mark = DiagnosticMarkers.auto
+                    case .manualOn: mark = DiagnosticMarkers.manualOn
+                    case .manualOff: mark = DiagnosticMarkers.manualOff
+                    case .unexplained: mark = DiagnosticMarkers.unexplained
+                    case .notSelected: mark = DiagnosticMarkers.notSelected
                         // Для правил із порогом давності причина різна в кожного елемента.
                         if rule.autoSelectOlderThanDays != nil { why = row.decision.reason }
                     }
-                    var line = "  \(mark) \(size(entry.bytes))  \(days(entry.measurement?.lastModified))  \(short(entry.url.path))"
-                    if entry.name != entry.url.lastPathComponent { line += "  «\(entry.name)»" }
+                    // Резервну копію iPhone не називаємо ні іменем пристрою, ні його UDID (теку): це ідентифікує людину.
+                    let isBackup = entry.scope == .backup
+                    let shownPath = isBackup ? short(entry.url.deletingLastPathComponent().path) + "/<backup>" : short(entry.url.path)
+                    var line = "  \(mark) \(size(entry.bytes))  \(days(entry.measurement?.lastModified))  \(shownPath)"
+                    if !isBackup, entry.name != entry.url.lastPathComponent { line += "  «\(entry.name)»" }
                     if let sub = entry.subtitle, !sub.isEmpty { line += "  · \(sub)" }
-                    if !entry.companions.isEmpty { line += "  (+\(entry.companions.count) шляхів)" }
+                    if !entry.companions.isEmpty { line += L("  (+%ld paths)", entry.companions.count) }
                     if !why.isEmpty { line += "  · \(why)" }
                     out.append(line)
                 }
                 if entries.count > maxEntriesPerRule {
                     let rest = entries.dropFirst(maxEntriesPerRule).reduce(Int64(0)) { $0 + $1.bytes }
-                    out.append("  … ще \(entries.count - maxEntriesPerRule) елементів (\(size(rest)))")
+                    out.append(L("  … %ld more item(s) (%@)", entries.count - maxEntriesPerRule, size(rest)))
                 }
             }
         }
 
         // --- Програми ---
         out.append("")
-        out.append("== ВСТАНОВЛЕНІ ПРОГРАМИ (\(input.apps.count)) ==")
+        out.append(DiagnosticMarkers.installedAppsHeader(count: input.apps.count))
         for app in input.apps {
             out.append("  \(short(app.path))  \(app.bundleID)  \(app.version)")
         }
 
         // --- Карта місця ---
         out.append("")
-        out.append("== КАРТА ЗАЙНЯТОГО МІСЦЯ ==")
-        out.append("Найбільші елементи в ключових теках (щоб знайти, що ще можна чистити).")
+        out.append(DiagnosticMarkers.surveyHeader)
+        out.append(L("Largest items in key folders (to find what else can be cleaned)."))
         let unfinished = input.survey.flatMap(\.items).filter(\.incomplete).count
         if unfinished > 0 {
-            out.append("⚠︎ Не всі розміри дорахувались (\(unfinished)): позначені «≥». Це завеликі теки або діагностику перервано.")
+            out.append(L("⚠︎ Not all sizes were fully measured (%ld): marked with “≥”. These are very large folders, or the diagnostic was interrupted.", unfinished))
         }
         for section in input.survey {
             out.append("")
-            out.append("### \(section.title) — \(size(section.totalBytes)), елементів: \(section.totalCount)")
+            out.append(L("### %@ — %@, items: %ld", section.title, size(section.totalBytes), section.totalCount))
             if let error = section.error { out.append("  ⚠︎ \(error)") }
             for item in section.items where item.bytes >= 1_000_000 || item.incomplete || item.note != nil {
                 let amount = item.incomplete ? "≥ \(size(item.bytes))" : size(item.bytes)
@@ -609,9 +664,9 @@ public enum DiagnosticReport {
                 }
                 renderChildren(item.children, indent: "      ")
             }
-            if section.restBytes > 0 { out.append("  … решта дрібніших: \(size(section.restBytes))") }
+            if section.restBytes > 0 { out.append(L("  … the rest of the smaller ones: %@", size(section.restBytes))) }
         }
-        return out.joined(separator: "\n") + "\n"
+        return redactPersonalIdentifiers(out.joined(separator: "\n")) + "\n"
     }
 }
 

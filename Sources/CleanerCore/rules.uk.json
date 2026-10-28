@@ -1,0 +1,172 @@
+{
+  "groups": {
+    "apps": "Кеші застосунків",
+    "design": "Дизайн і медіа",
+    "files": "Файли та копії",
+    "uninstall": "Деінсталятор",
+    "projects": "Проєкти (node_modules, build, Pods…)",
+    "xcode": "Xcode та симулятори",
+    "android": "Android та Gradle",
+    "devtools": "Менеджери пакетів",
+    "ide": "IDE (JetBrains, Android Studio)",
+    "system": "Система та логи"
+  },
+  "rules": {
+    "xcode.derivedData": {
+      "title": "Xcode DerivedData",
+      "detail": "Проміжні результати збірки проєктів. Наступна збірка кожного проєкту буде довшою."
+    },
+    "xcode.deviceSupport": {
+      "title": "Символи пристроїв (DeviceSupport)",
+      "detail": "Xcode завантажує їх з iPhone/iPad при підключенні. Після видалення перше підключення пристрою буде довшим."
+    },
+    "xcode.caches": {
+      "title": "Кеші Xcode та симуляторів",
+      "detail": "Службові кеші Xcode і CoreSimulator. Відновляться при наступному запуску."
+    },
+    "xcode.archives": {
+      "title": "Xcode Archives",
+      "detail": "Архіви збірок разом із dSYM. Без них не вдасться символікувати краші вже випущених версій."
+    },
+    "xcode.simulatorRuntimes": {
+      "title": "Runtimes iOS-симуляторів",
+      "detail": "Образи iOS/watchOS для симуляторів, по 7–10 ГБ кожен. Видаляє `xcrun simctl runtime delete`. Потрібний runtime можна докачати в налаштуваннях Xcode (Components). Дублікати (17.0 і 17.0.1) позначені."
+    },
+    "xcode.simulatorDevices": {
+      "title": "Симулятори (пристрої)",
+      "detail": "Створені симулятори разом з даними встановлених застосунків. Видаляє `xcrun simctl delete`. Нові створюються в Xcode → Window → Devices and Simulators."
+    },
+    "gradle.caches": {
+      "title": "Gradle caches",
+      "detail": "Завантажені залежності й результати збірок. Наступна збірка Android-проєкту докачає все заново (потрібен інтернет)."
+    },
+    "gradle.wrapper": {
+      "title": "Дистрибутиви Gradle (wrapper)",
+      "detail": "Окремі версії Gradle для проєктів. Потрібну версію Gradle докачає сам при наступній збірці."
+    },
+    "gradle.jdks": {
+      "title": "JDK, завантажені Gradle",
+      "detail": "Toolchain-JDK, які Gradle завантажив сам. Докачаються при потребі."
+    },
+    "android.avd": {
+      "title": "Android-емулятори (AVD)",
+      "detail": "Образи віртуальних пристроїв з усіма їхніми даними (зазвичай 5–15 ГБ кожен). Створюються заново в Android Studio → Device Manager."
+    },
+    "android.ndk": {
+      "title": "Версії Android NDK",
+      "detail": "Окремі версії NDK. Gradle докачає потрібну сам, якщо вона вказана в проєкті (ndkVersion)."
+    },
+    "npm.cache": {
+      "title": "npm кеш",
+      "detail": "Кеш завантажених пакетів. npm докачає потрібне при наступному install."
+    },
+    "yarn.cache": {
+      "title": "Yarn кеш",
+      "detail": "Кеш пакетів Yarn. Докачається при наступному install."
+    },
+    "cocoapods.cache": {
+      "title": "CocoaPods кеш",
+      "detail": "Кеш завантажених подів. `pod install` докачає потрібне."
+    },
+    "swiftpm.cache": {
+      "title": "Swift Package Manager кеш",
+      "detail": "Клони й артефакти пакетів. Xcode завантажить заново при розв'язанні залежностей."
+    },
+    "homebrew.cache": {
+      "title": "Homebrew кеш",
+      "detail": "Завантажені інсталятори й індекси. Для старих версій формул окремо є `brew cleanup`."
+    },
+    "devtools.misc": {
+      "title": "Кеші збірки (node-gyp, Next.js, TypeScript, pip)",
+      "detail": "Кеші інструментів збірки. Відновляться при наступному використанні."
+    },
+    "playwright.browsers": {
+      "title": "Браузери Playwright",
+      "detail": "Завантажені Chromium/Firefox/WebKit для тестів. Повертаються командою `npx playwright install`."
+    },
+    "ide.androidStudioCaches": {
+      "title": "Кеші старих версій Android Studio",
+      "detail": "Індекси й кеші версій, якими ти давно не користувався. Остання версія та все, що змінювалось за 30 днів, лишається."
+    },
+    "ide.jetbrainsCaches": {
+      "title": "Кеші старих версій JetBrains IDE",
+      "detail": "Індекси й кеші старих версій WebStorm, IntelliJ тощо. Остання версія та все, що змінювалось за 30 днів, лишається."
+    },
+    "ide.androidStudioConfigs": {
+      "title": "Налаштування старих версій Android Studio",
+      "detail": "Налаштування, плагіни й локальна історія версій, якими ти давно не користувався (30+ днів). Обережно: це не кеш."
+    },
+    "ide.jetbrainsConfigs": {
+      "title": "Налаштування старих версій JetBrains IDE",
+      "detail": "Налаштування й плагіни старих версій (30+ днів без змін). Обережно: це не кеш."
+    },
+    "design.adobeMediaCache": {
+      "title": "Adobe: кеш відео (Media Cache, Peak Files)",
+      "detail": "Кеш Premiere Pro, After Effects, Media Encoder. Часто займає десятки ГБ. Перебудується сам, але перший перегляд проєктів буде повільнішим."
+    },
+    "design.adobeCaches": {
+      "title": "Adobe: кеші програм",
+      "detail": "Кеші Photoshop, Illustrator, Lightroom, Camera Raw, After Effects (дисковий кеш) та інших. Відновляться, але перший запуск може бути довшим."
+    },
+    "apps.electronCaches": {
+      "title": "Кеші Figma, Discord, Slack та інших програм",
+      "detail": "Веб-кеші програм на Electron/Chromium (Figma, Discord, Slack, Notion, VS Code…). Не чіпаю профіль, паролі й документи, лише теки Cache. Програми відновлять їх самі."
+    },
+    "apps.sandboxCaches": {
+      "title": "Кеші програм у Containers (Affinity, Pixelmator…)",
+      "detail": "Кеші програм, що працюють у пісочниці. Системні програми Apple тут не показую. Відновляться самі."
+    },
+    "apps.groupCaches": {
+      "title": "Кеші в Group Containers",
+      "detail": "Спільні кеші програм одного розробника. Системні (Apple) тут не показую."
+    },
+    "apps.safariCache": {
+      "title": "Кеш Safari",
+      "detail": "Лише кеш сторінок. Закладки, історія й паролі лишаються. Сторінки спершу вантажитимуться повільніше. Потрібен Full Disk Access."
+    },
+    "apps.telegramMedia": {
+      "title": "Telegram: завантажені медіа (кеш)",
+      "detail": "Фото, відео й файли з чатів, які Telegram зберіг на диску. Зазвичай по кілька ГБ. З хмари вони завантажаться знову. Секретні чати й ще не відправлені файли не відновляться. Telegram має бути закритий."
+    },
+    "chrome.cache": {
+      "title": "Кеш Chrome",
+      "detail": "Лише кеш сторінок. Профіль, закладки й паролі не чіпаю. Сторінки спершу вантажитимуться повільніше."
+    },
+    "claude.vm": {
+      "title": "Claude: образ віртуальної машини",
+      "detail": "Образ VM, який Claude для робочого столу створює для ізольованих завдань. Створиться заново при потребі."
+    },
+    "apps.caches": {
+      "title": "Кеші решти застосунків",
+      "detail": "Кеші застосунків, не покриті іншими правилами. Системні (com.apple.*) і запущені застосунки пропускаю."
+    },
+    "system.logs": {
+      "title": "Логи застосунків",
+      "detail": "Журнали й звіти про збої. Нікому не потрібні, поки ти не розбираєш проблему."
+    },
+    "system.libCaches": {
+      "title": "Системні кеші (/Library/Caches)",
+      "detail": "Кеші, спільні для всіх користувачів. macOS попросить пароль адміна. За замовчуванням вимкнено."
+    },
+    "system.libLogs": {
+      "title": "Системні логи (/Library/Logs)",
+      "detail": "Журнали, спільні для всіх користувачів. macOS попросить пароль адміна. За замовчуванням вимкнено."
+    },
+    "system.appleContainerCaches": {
+      "title": "Кеші системних служб Apple (Containers)",
+      "detail": "Кеші служб macOS: наприклад аналізу фото (mediaanalysisd) і підключення пристроїв до Xcode. Займають гігабайти. macOS відновить їх, але фонове індексування фото може тимчасово навантажити Mac. За замовчуванням вимкнено."
+    },
+    "system.mailDownloads": {
+      "title": "Вкладення Mail, завантажені на диск",
+      "detail": "Копії вкладень, які Mail зберіг для перегляду. Для IMAP-пошти оригінали лишаються на сервері, а для POP можуть бути єдиною копією. Потрібен Full Disk Access."
+    },
+    "system.iosFirmware": {
+      "title": "Файли оновлення iPhone/iPad (.ipsw)",
+      "detail": "Прошивки, які Finder завантажив при оновленні пристрою. Завантажаться знову, якщо потрібні."
+    },
+    "system.trash": {
+      "title": "Кошик",
+      "detail": "Остаточно видаляє все, що лежить у Кошику. Потрібен Full Disk Access. Назад не повернеш."
+    }
+  }
+}

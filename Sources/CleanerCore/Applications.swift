@@ -16,10 +16,12 @@ public struct InstalledApp: Sendable, Equatable {
 
 /// Деінсталятор: програми з /Applications і ~/Applications разом із залишками в ~/Library.
 public enum AppProvider {
-    public static let rule = CleanupRule(
-        id: "apps.uninstall", group: "uninstall", title: "Встановлені програми",
-        detail: "Програма й усі її залишки (налаштування, кеші, дані) переміщуються в Кошик. Системні програми Apple не показую (лише iMovie, GarageBand, Keynote, Pages, Numbers). Те, що встановлено через Mac App Store чи Microsoft, потребує пароля адміна й видаляється назовсім.",
-        risk: .careful, granularity: .selfItem, skipRunningAppCaches: true, moveToTrash: true, bulkSelectable: false)
+    public static var rule: CleanupRule {
+        CleanupRule(
+            id: "apps.uninstall", group: "uninstall", title: L("Installed apps"),
+            detail: L("The app and all its leftovers (settings, caches, data) are moved to the Trash. Apple's system apps are not shown (only iMovie, GarageBand, Keynote, Pages, Numbers). Apps installed through the Mac App Store or by Microsoft need the administrator password and are deleted permanently."),
+            risk: .careful, granularity: .selfItem, skipRunningAppCaches: true, moveToTrash: true, bulkSelectable: false)
+    }
 
     public static func installedApps(roots: [URL]) -> [InstalledApp] {
         var apps: [InstalledApp] = []
@@ -86,18 +88,19 @@ public enum AppProvider {
 
     public static func discover(home: URL, roots: [URL]? = nil) -> RuleResult {
         let roots = roots ?? [URL(fileURLWithPath: "/Applications"), home.appendingPathComponent("Applications")]
+        let rule = Self.rule
         let entries = installedApps(roots: roots).map { app -> Entry in
             let leftovers = leftovers(for: app, home: home)
             var details: [String] = []
             // Дві програми з однаковою назвою (Telegram, Telegram 2) розрізняємо за іменем файлу.
             let fileName = app.url.deletingPathExtension().lastPathComponent
             if fileName != app.name { details.append("\(fileName).app") }
-            if let version = app.version { details.append("версія \(version)") }
-            details.append(leftovers.isEmpty ? "без залишків" : "залишків: \(leftovers.count)")
-            if app.isRootOwned { details.append("потрібен пароль") }
+            if let version = app.version { details.append(L("version %@", version)) }
+            details.append(leftovers.isEmpty ? L("no leftovers") : L("leftovers: %ld", leftovers.count))
+            if app.isRootOwned { details.append(L("password required")) }
             return Entry(
                 ruleID: rule.id, url: app.url, name: app.name, subtitle: details.joined(separator: " · "),
-                ageLabel: "відкривали", scope: .application, action: .trashPaths, companions: leftovers,
+                ageLabel: L("opened"), scope: .application, action: .trashPaths, companions: leftovers,
                 ownerName: app.bundleID, activityDate: app.lastUsed,
                 ownerTokens: [app.bundleID] + app.names, needsAdmin: app.isRootOwned)
         }
@@ -114,12 +117,14 @@ public enum AppProvider {
 /// Старі версії Adobe: показуємо розмір і пораду, але нічого не видаляємо самі.
 /// Правильно прибирати їх через Creative Cloud: він чистить і службові файли та ліцензії.
 public enum AdobeVersions {
-    public static let rule = CleanupRule(
-        id: "design.adobeVersions", group: "design", title: "Старі версії Adobe (видаляй через Creative Cloud)",
-        detail: "Встановлено кілька версій однієї програми. Зайві займають по 3–7 ГБ кожна. Видали їх у Creative Cloud (Програми → ⋯ → Видалити), він прибере й службові файли. Тут я їх лише показую.",
-        risk: .careful, granularity: .selfItem, bulkSelectable: false)
+    public static var rule: CleanupRule {
+        CleanupRule(
+            id: "design.adobeVersions", group: "design", title: L("Old Adobe versions (remove through Creative Cloud)"),
+            detail: L("Several versions of the same app are installed. The extra ones take 3–7 GB each. Remove them in Creative Cloud (Apps → ⋯ → Uninstall); it also cleans up the helper files. I only show them here."),
+            risk: .careful, granularity: .selfItem, bulkSelectable: false)
+    }
 
-    private static let advice = "Видаляй через Creative Cloud: Програми → ⋯ → Видалити"
+    private static var advice: String { L("Remove through Creative Cloud: Apps → ⋯ → Uninstall") }
 
     /// `Adobe Photoshop 2025` → (`Adobe Photoshop`, 2025).
     static func parse(_ folderName: String) -> (product: String, year: Int)? {
@@ -151,13 +156,13 @@ public enum AdobeVersions {
         for folder in folders {
             var subtitle: String?
             if let parsed = parse(folder.name), let newest = newestYear[parsed.product], parsed.year < newest {
-                subtitle = "є новіша версія: \(newest)"
+                subtitle = L("a newer version exists: %ld", newest)
             } else if folder.name.hasSuffix("(Beta)") {
-                subtitle = "бета-версія"
+                subtitle = L("beta version")
             }
             guard let subtitle else { continue }
             entries.append(Entry(
-                ruleID: rule.id, url: folder.url, name: folder.name, subtitle: subtitle, ageLabel: "змінено",
+                ruleID: rule.id, url: folder.url, name: folder.name, subtitle: subtitle, ageLabel: L("modified"),
                 lockedReason: advice, scope: .application, action: .trashPaths, informational: true))
         }
         return RuleResult(rule: rule, entries: entries.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending })
@@ -168,10 +173,12 @@ public enum AdobeVersions {
 /// Налаштування старих версій Illustrator у `~/Library/Preferences/Adobe Illustrator NN Settings`.
 /// Кожна версія лишає по 4–8 ГБ, а коли програму видалено, ці дані нікому не потрібні.
 public enum AdobeSettings {
-    public static let rule = CleanupRule(
-        id: "design.adobeSettings", group: "design", title: "Налаштування старих версій Illustrator",
-        detail: "Налаштування версій Illustrator, яких немає на цьому Mac, по 4–8 ГБ кожна. Налаштування встановлених версій лишаються (їх показано заблокованими). Якщо Illustrator такої версії стоїть не в /Applications, не видаляй. Перемістяться в Кошик.",
-        risk: .careful, granularity: .selfItem, blockedByApps: ["com.adobe.illustrator*"], moveToTrash: true)
+    public static var rule: CleanupRule {
+        CleanupRule(
+            id: "design.adobeSettings", group: "design", title: L("Settings of old Illustrator versions"),
+            detail: L("Settings of Illustrator versions that are not on this Mac, 4–8 GB each. Settings of installed versions stay (they are shown locked). If that Illustrator version is installed outside /Applications, do not delete them. They are moved to the Trash."),
+            risk: .careful, granularity: .selfItem, blockedByApps: ["com.adobe.illustrator*"], moveToTrash: true)
+    }
 
     /// Старші мажорні версії Illustrator, які є на диску (у `/Applications/Adobe Illustrator 2025/…`).
     public static func installedIllustratorMajors(roots: [URL]) -> Set<Int> {
@@ -217,9 +224,9 @@ public enum AdobeSettings {
             let isInstalled = installed.contains(major)
             entries.append(Entry(
                 ruleID: rule.id, url: url, name: name,
-                subtitle: isInstalled ? "ця версія встановлена" : "версії \(major) немає на цьому Mac",
-                ageLabel: "змінено",
-                lockedReason: isInstalled ? "Ця версія Illustrator встановлена" : nil,
+                subtitle: isInstalled ? L("this version is installed") : L("version %ld is not installed on this Mac", major),
+                ageLabel: L("modified"),
+                lockedReason: isInstalled ? L("This Illustrator version is installed") : nil,
                 scope: .home, action: .trashPaths, informational: isInstalled))
         }
         entries.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

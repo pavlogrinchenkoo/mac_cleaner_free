@@ -32,7 +32,7 @@ public enum SimulatorProvider {
                 let available = device["isAvailable"] as? Bool ?? true
                 let state = device["state"] as? String ?? "Shutdown"
                 var subtitle = runtimeLabel(runtimeKey)
-                if !available { subtitle += " · недоступний (runtime видалено)" }
+                if !available { subtitle += " · " + L("unavailable (runtime removed)") }
 
                 let lastBooted = (device["lastBootedAt"] as? String).flatMap { iso.date(from: $0) }
                 var preset: DiskUsage?
@@ -41,8 +41,8 @@ public enum SimulatorProvider {
                 }
 
                 entries.append(Entry(
-                    ruleID: ruleID, url: directory, name: name, subtitle: subtitle, ageLabel: "запускався",
-                    lockedReason: state == "Shutdown" ? nil : "Симулятор запущений, спершу вимкни його",
+                    ruleID: ruleID, url: directory, name: name, subtitle: subtitle, ageLabel: L("booted"),
+                    lockedReason: state == "Shutdown" ? nil : L("Simulator is running, shut it down first"),
                     action: .simctlDeleteDevice(udid: udid), presetUsage: preset
                 ))
             }
@@ -90,13 +90,13 @@ public enum SimulatorProvider {
         return runtimes.map { runtime in
             var subtitle: String?
             if let newest = newestByIdentifier[runtime.identifier], newest != runtime.version {
-                subtitle = "Є новіша збірка цього ж runtime: \(newest)"
+                subtitle = L("A newer build of this runtime exists: %@", newest)
             }
             let label = "\(runtimeLabel(runtime.identifier, fallbackVersion: runtime.version)) (\(runtime.build))"
             return Entry(
                 ruleID: ruleID, url: URL(fileURLWithPath: runtime.path.isEmpty ? "/" : runtime.path),
-                id: "simruntime:\(runtime.id)", name: label, subtitle: subtitle, ageLabel: "використовувався",
-                lockedReason: runtime.deletable ? nil : "Частина Xcode, видалити не можна",
+                id: "simruntime:\(runtime.id)", name: label, subtitle: subtitle, ageLabel: L("last used"),
+                lockedReason: runtime.deletable ? nil : L("Part of Xcode, cannot be deleted"),
                 action: .simctlDeleteRuntime(id: runtime.id),
                 presetUsage: DiskUsage(bytes: runtime.size, fileCount: 0, lastModified: runtime.lastUsed, hadErrors: false)
             )

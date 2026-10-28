@@ -3,7 +3,7 @@ import XCTest
 
 // MARK: - Охоронець особистих файлів
 
-final class UserFileGuardTests: XCTestCase {
+final class UserFileGuardTests: CleanerTestCase {
     private func make() throws -> (FakeHome, UserFileGuard) {
         let home = try FakeHome()
         return (home, UserFileGuard(home: home.url, roots: [home.path("Downloads"), home.path("Documents")]))
@@ -54,7 +54,7 @@ final class UserFileGuardTests: XCTestCase {
 
 // MARK: - Пошук файлів
 
-final class FileScannerTests: XCTestCase {
+final class FileScannerTests: CleanerTestCase {
     private func settings(_ home: FakeHome, excluded: [URL] = []) -> FileScanSettings {
         FileScanSettings(
             roots: ["Downloads", "Desktop", "Documents", "Movies"].map { home.path($0) }, excludedRoots: excluded,
@@ -183,7 +183,7 @@ final class FileScannerTests: XCTestCase {
 
 // MARK: - Рушій: Кошик і дублікати
 
-final class TrashEngineTests: XCTestCase {
+final class TrashEngineTests: CleanerTestCase {
     private func fileEntry(_ home: FakeHome, _ relative: String, rule: CleanupRule, keeper: Keeper? = nil, bytes: Int64 = 5_000) -> Entry {
         var entry = Entry(
             ruleID: rule.id, url: home.path(relative), scope: .userFile, action: .trashPaths, keeper: keeper)
@@ -320,7 +320,7 @@ final class TrashEngineTests: XCTestCase {
 
 // MARK: - Резервні копії iPhone
 
-final class BackupTests: XCTestCase {
+final class BackupTests: CleanerTestCase {
     private let udid = "00008110-001A2B3C4D5E6F78"
 
     private func makeBackup(_ home: FakeHome, id: String? = nil, encrypted: Bool = false) throws {
@@ -398,7 +398,7 @@ final class BackupTests: XCTestCase {
 
 // MARK: - Деінсталятор
 
-final class UninstallerTests: XCTestCase {
+final class UninstallerTests: CleanerTestCase {
     private func setup() throws -> (FakeHome, URL) {
         let home = try FakeHome()
         let apps = home.path("Apps")
@@ -534,7 +534,7 @@ final class UninstallerTests: XCTestCase {
 
 // MARK: - Кеші за власником
 
-final class OwnerCacheTests: XCTestCase {
+final class OwnerCacheTests: CleanerTestCase {
     private func rule() throws -> CleanupRule {
         try makeRule(
             id: "apps.electron",

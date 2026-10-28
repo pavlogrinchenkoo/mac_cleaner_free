@@ -33,9 +33,9 @@ public struct CleanupRule: Codable, Sendable, Identifiable, Hashable {
 
     public let id: String
     public let group: String
-    public let title: String
+    public internal(set) var title: String
     /// Що це і що станеться після видалення.
-    public let detail: String
+    public internal(set) var detail: String
     public let risk: Risk
     /// Шляхи з `~` і `*`. Порожньо для правил із `provider`.
     public let paths: [String]
@@ -62,7 +62,7 @@ public struct CleanupRule: Codable, Sendable, Identifiable, Hashable {
     /// Правило «решта»: пропускає все, що вже покрито точнішими правилами.
     public let catchAll: Bool
     /// Видалення потребує прав адміна (запит пароля). Дозволено лише для короткого списку системних папок.
-    public let requiresAdmin: Bool
+    public internal(set) var requiresAdmin: Bool
     /// Елементи дає код, а не шляхи: `simctl.devices`, `simctl.runtimes`.
     public let provider: String?
     /// Файли переміщуються в Кошик (можна повернути), а не видаляються назовсім.
@@ -75,6 +75,10 @@ public struct CleanupRule: Codable, Sendable, Identifiable, Hashable {
     /// Чи можна одним чекбоксом правила вибрати все. Для особистих файлів (дизайн-файли, програми, бекапи)
     /// ні: там кожен елемент вибирають окремо.
     public let bulkSelectable: Bool
+    /// Правило з файлу користувача (`~/Library/Application Support/Cleaner/rules.json`), а не вбудоване.
+    /// Не береться з JSON: його ставить лише `RuleLoader`. Такі правила ніколи не вибираються самі й не можуть
+    /// просити пароль адміна (файл правил — це довіра на слово, а охоронці лише забороняють відоме).
+    public internal(set) var isCustom: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id, group, title, detail, risk, paths, granularity

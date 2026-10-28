@@ -7,7 +7,7 @@ struct CleaningSheet: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text(model.dryRun ? "Пробний запуск…" : "Виконую…").font(.title3.weight(.semibold))
+            Text(model.dryRun ? L("Dry run…") : L("Working…")).font(.title3.weight(.semibold))
             if let progress = model.cleanProgress {
                 ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1)))
                 Text(progress.current.isEmpty ? " " : progress.current)
@@ -15,7 +15,7 @@ struct CleaningSheet: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text("\(progress.done) з \(progress.total)")
+                Text(L("%ld of %ld", progress.done, progress.total))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             } else {
@@ -24,12 +24,12 @@ struct CleaningSheet: View {
 
             if model.collectingDiagnostics {
                 VStack(spacing: 8) {
-                    Text("Це може тривати 1–2 хвилини. Найбільші теки обмежені в часі, а хмарні (iCloud) не міряю.")
+                    Text(L("This may take 1–2 minutes. The biggest folders are time-limited, and I don't measure cloud folders (iCloud)."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Пропустити й зберегти те, що є") { model.skipDiagnostics() }
+                    Button(L("Skip and save what I have")) { model.skipDiagnostics() }
                 }
             }
         }
@@ -50,52 +50,52 @@ struct ReportSheet: View {
                         .font(.system(size: 40))
                         .foregroundStyle(report.dryRun ? Color.accentColor : Color.green)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(report.dryRun ? "Було б звільнено" : "Звільнено").foregroundStyle(.secondary)
+                        Text(report.dryRun ? L("Would be freed") : L("Freed")).foregroundStyle(.secondary)
                         Text(Format.bytes(report.freedBytes)).font(.system(size: 30, weight: .semibold))
                     }
                 }
 
                 if report.trashedBytes > 0 {
                     VStack(alignment: .leading, spacing: 2) {
-                        Label("\(report.dryRun ? "Було б у Кошику" : "У Кошику"): \(Format.bytes(report.trashedBytes))", systemImage: "trash")
+                        Label(report.dryRun ? L("Would be in Trash: %@", Format.bytes(report.trashedBytes)) : L("In Trash: %@", Format.bytes(report.trashedBytes)), systemImage: "trash")
                             .font(.headline)
-                        Text("Це можна повернути. Місце звільниться, коли очистиш Кошик (у групі «Система» є пункт «Кошик»).")
+                        Text(L("This can be restored. Space is freed when you empty the Trash (there is a “Trash” item in the “System & logs” group)."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
 
                 if !report.dryRun, let before = model.diskBeforeClean, let after = model.disk {
-                    Text("Вільно на диску: \(Format.bytes(before.freeBytes)) → \(Format.bytes(after.freeBytes))")
+                    Text(L("Free on disk: %@ → %@", Format.bytes(before.freeBytes), Format.bytes(after.freeBytes)))
                         .font(.callout)
-                    Text("Finder може показати трохи інше: macOS оновлює вільне місце із затримкою.")
+                    Text(L("Finder may show slightly different numbers: macOS updates free space with a delay."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 if !report.failures.isEmpty {
-                    ProblemList(title: "Не вдалося", items: report.failures, color: .red)
+                    ProblemList(title: L("Failed"), items: report.failures, color: .red)
                 }
                 if !report.skipped.isEmpty {
-                    ProblemList(title: "Пропущено", items: report.skipped, color: .orange)
+                    ProblemList(title: L("Skipped"), items: report.skipped, color: .orange)
                 }
 
                 if let log = report.logURL {
                     VStack(alignment: .leading, spacing: 8) {
                         Divider()
-                        Label(report.dryRun ? "Діагностику збережено" : "Лог збережено", systemImage: "doc.text")
+                        Label(report.dryRun ? L("Diagnostics saved") : L("Log saved"), systemImage: "doc.text")
                             .font(.headline)
                         Text(log.lastPathComponent).font(.callout.monospaced()).textSelection(.enabled)
-                        if report.dryRun {
-                            Text("Тут повний список знайденого, встановлені програми й карта зайнятого місця. У файлі є назви файлів і програм: за потреби перегляньте його перед відправкою.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                        Text(report.dryRun
+                             ? L("It has the full list of what was found, installed apps and a map of used space. The file contains file and app names from this Mac: read it before sending, and do not post it publicly without removing anything private.")
+                             : L("The log lists the paths of the processed items, so it contains file names from this Mac. Read it before sharing it, and do not post it publicly without removing anything private."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         HStack {
-                            ShareLink(item: log) { Label("Поділитися…", systemImage: "square.and.arrow.up") }
+                            ShareLink(item: log) { Label(L("Share…"), systemImage: "square.and.arrow.up") }
                             Button { NSWorkspace.shared.activateFileViewerSelecting([log]) } label: {
-                                Label("Показати у Finder", systemImage: "folder")
+                                Label(L("Show in Finder"), systemImage: "folder")
                             }
                         }
                     }
@@ -103,7 +103,7 @@ struct ReportSheet: View {
 
                 HStack {
                     Spacer()
-                    Button("Готово") { dismiss() }
+                    Button(L("Done")) { dismiss() }
                         .keyboardShortcut(.defaultAction)
                         .buttonStyle(.borderedProminent)
                 }
@@ -158,30 +158,30 @@ struct FullDiskAccessSheet: View {
                     .font(.system(size: 44))
                     .foregroundStyle(model.hasFullDiskAccess ? Color.green : Color.orange)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Повний доступ до диска").font(.title2.weight(.semibold))
-                    Text(model.hasFullDiskAccess ? "Дозвіл є." : "Дозволу ще немає.")
+                    Text(L("Full Disk Access")).font(.title2.weight(.semibold))
+                    Text(model.hasFullDiskAccess ? L("Permission granted.") : L("Permission not granted yet."))
                         .foregroundStyle(model.hasFullDiskAccess ? Color.green : Color.orange)
                 }
             }
 
-            Text("macOS не дозволяє застосункам вмикати цей доступ самим: це робиш ти один раз у налаштуваннях. Без нього я не бачу Кошик і частину захищених папок, але решта працює.")
+            Text(L("macOS doesn't let apps turn this access on themselves: you do it once in Settings. Without it I can't see the Trash and some protected folders, but everything else works."))
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 10) {
-                step(1, "Натисни «Відкрити налаштування»: відкриється Конфіденційність і безпека → Повний доступ до диска.")
-                step(2, "Увімкни перемикач біля Cleaner. Якщо його немає в списку, натисни «+» і додай Cleaner.app. Кнопка «Показати в Finder» допоможе його знайти.")
-                step(3, "macOS запропонує закрити й відкрити застосунок знову: погодься або натисни «Перезапустити» тут. Без перезапуску дозвіл не діє.")
+                step(1, L("Click “Open Settings”: Privacy & Security → Full Disk Access will open."))
+                step(2, L("Turn on the switch next to Cleaner. If it isn't in the list, click “+” and add Cleaner.app. The “Show app in Finder” button helps you find it."))
+                step(3, L("macOS will offer to quit and reopen the app: agree, or click “Restart” here. The permission doesn't work without a restart."))
             }
 
             HStack {
-                Button("Відкрити налаштування") { model.openFullDiskAccessSettings() }
+                Button(L("Open Settings")) { model.openFullDiskAccessSettings() }
                     .buttonStyle(.borderedProminent)
-                Button("Показати в Finder") { model.revealAppInFinder() }
+                Button(L("Show app in Finder")) { model.revealAppInFinder() }
                 Spacer()
                 if model.canRelaunch {
-                    Button("Перезапустити") { model.relaunch() }
+                    Button(L("Restart")) { model.relaunch() }
                 }
-                Button(model.hasFullDiskAccess ? "Готово" : "Пізніше") {
+                Button(model.hasFullDiskAccess ? L("Done") : L("Later")) {
                     model.dismissFullDiskAccessGuide()
                 }
                 .keyboardShortcut(.cancelAction)

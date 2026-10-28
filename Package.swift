@@ -9,14 +9,14 @@ let package = Package(
         .executable(name: "cleanerctl", targets: ["cleanerctl"]),
     ],
     targets: [
-        // Рушій: правила, сканування, безпечне видалення. Без UI.
+        // Engine: rules, scanning, safe deletion. No UI.
         .target(
             name: "CleanerCore",
-            resources: [.copy("rules.json")]
+            resources: [.copy("rules.json"), .copy("rules.uk.json")]
         ),
-        // Застосунок SwiftUI.
+        // The SwiftUI app.
         .executableTarget(name: "Cleaner", dependencies: ["CleanerCore"]),
-        // CLI для скриптів і перевірки рушія без UI.
+        // Command-line tool for scripts and checking the engine without the UI.
         .executableTarget(name: "cleanerctl", dependencies: ["CleanerCore"]),
         .testTarget(name: "CleanerCoreTests", dependencies: ["CleanerCore"]),
     ]

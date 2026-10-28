@@ -103,7 +103,7 @@ public final class DiskScanner: Sendable {
                         let names = try FileManager.default.contentsOfDirectory(atPath: match.path)
                         matches.append(contentsOf: names.map { (match.appendingPathComponent($0), prefix) })
                     } catch where FullDiskAccess.isDenied(error) {
-                        accessError = "Немає доступу до \(match.lastPathComponent). Потрібен Full Disk Access."
+                        accessError = L("No access to %@. Full Disk Access is required.", match.lastPathComponent)
                     } catch {
                         // Не папка або зникла: пропускаємо.
                     }
@@ -149,7 +149,8 @@ public final class DiskScanner: Sendable {
                 var merged = sorted[0]
                 merged.companions = sorted.dropFirst().map(\.url)
                 let kinds = Array(Set(sorted.map { $0.url.lastPathComponent })).sorted()
-                merged.subtitle = "теки: \(sorted.count) (\(kinds.prefix(3).joined(separator: ", "))\(kinds.count > 3 ? "…" : ""))"
+                let list = kinds.prefix(3).joined(separator: ", ") + (kinds.count > 3 ? "…" : "")
+                merged.subtitle = L("folders: %ld (%@)", sorted.count, list)
                 return merged
             }
         }
@@ -158,7 +159,7 @@ public final class DiskScanner: Sendable {
             entries = entries.filter { VersionedName($0.name) != nil }
             let newest = Set(VersionFamily.newestPerFamily(names: entries.map(\.name)).values)
             for index in entries.indices where newest.contains(entries[index].name) {
-                entries[index].lockedReason = "Остання версія, зараз у використанні"
+                entries[index].lockedReason = L("Latest version, currently in use")
             }
         }
 
@@ -217,7 +218,7 @@ public final class DiskScanner: Sendable {
                 let base = discover()
                 continuation.yield(.discovered(base))
 
-                continuation.yield(.status("Шукаю проєкти, симулятори й програми…"))
+                continuation.yield(.status(L("Looking for projects, simulators and apps…")))
                 let dynamic = discoverDynamic()
                 if !dynamic.isEmpty { continuation.yield(.appended(dynamic)) }
 
@@ -228,7 +229,7 @@ public final class DiskScanner: Sendable {
                 toMeasure += dynamic.flatMap(\.entries)
                 toMeasure = toMeasure.filter { $0.lockedReason == nil || $0.presetUsage != nil || $0.informational }
 
-                continuation.yield(.status("Рахую розміри…"))
+                continuation.yield(.status(L("Measuring sizes…")))
                 let home = self.home
                 await withTaskGroup(of: (String, DiskUsage).self) { group in
                     var iterator = toMeasure.makeIterator()
@@ -291,6 +292,11 @@ public final class DiskScanner: Sendable {
         return blocks
     }
 
+    /// "3 days" / "3 дн.": українське скорочення не змінюється з числом.
+    private static func dayCount(_ n: Int) -> String {
+        Loc.plural(n, en: (one: "\(n) day", other: "\(n) days"), uk: (one: "\(n) дн.", few: "\(n) дн.", many: "\(n) дн."))
+    }
+
     /// Чому саме цей елемент зараз не можна видаляти (або `nil`).
     public static func blockReason(
         for entry: Entry, rule: CleanupRule, ruleBlock: String?, snapshot: RunningSnapshot, now: Date = Date()
@@ -299,10 +305,10 @@ public final class DiskScanner: Sendable {
         if let ruleBlock { return ruleBlock }
         if let days = rule.protectRecentDays, let last = entry.measurement?.lastModified {
             let age = Int(now.timeIntervalSince(last) / 86_400)
-            if age < days { return age == 0 ? "Використовувався сьогодні" : "Використовувався \(age) дн. тому" }
+            if age < days { return age == 0 ? L("Used today") : L("Used %@ ago", dayCount(age)) }
         }
         if rule.skipRunningAppCaches, snapshot.ownsCache(named: entry.ownerName ?? entry.name) {
-            return "Застосунок запущений"
+            return L("App is running")
         }
         return nil
     }
@@ -314,27 +320,29 @@ public final class DiskScanner: Sendable {
     }
 
     public static func defaultDecision(_ entry: Entry, rule: CleanupRule, now: Date = Date()) -> DefaultDecision {
+        // Правила з файлу користувача ніколи не вибираються самі: лише вручну, після перегляду списку.
+        if rule.isCustom { return DefaultDecision(selected: false, reason: L("custom rule: manual only")) }
         // Те, що вимагає пароля, ніколи не вибираємо саме: пароль питаємо лише коли користувач сам попросив.
-        if rule.requiresAdmin { return DefaultDecision(selected: false, reason: "потрібен пароль адміна: лише вручну") }
+        if rule.requiresAdmin { return DefaultDecision(selected: false, reason: L("administrator password needed: manual only")) }
         // Особисті файли, бекапи й програми користувач вибирає лише вручну.
         switch entry.scope {
-        case .userFile: return DefaultDecision(selected: false, reason: "особисті файли: лише вручну")
-        case .backup: return DefaultDecision(selected: false, reason: "резервна копія: лише вручну")
-        case .application: return DefaultDecision(selected: false, reason: "програма: лише вручну")
+        case .userFile: return DefaultDecision(selected: false, reason: L("personal files: manual only"))
+        case .backup: return DefaultDecision(selected: false, reason: L("backup: manual only"))
+        case .application: return DefaultDecision(selected: false, reason: L("app: manual only"))
         default: break
         }
         if let days = rule.autoSelectOlderThanDays {
             guard let last = entry.measurement?.lastModified else {
-                return DefaultDecision(selected: false, reason: "невідомо, коли змінювалось")
+                return DefaultDecision(selected: false, reason: L("unknown when it last changed"))
             }
             let age = Int(now.timeIntervalSince(last) / 86_400)
             return age >= days
-                ? DefaultDecision(selected: true, reason: "не змінювалось \(age) дн. (потрібно від \(days))")
-                : DefaultDecision(selected: false, reason: "активність \(age) дн. тому (потрібно від \(days))")
+                ? DefaultDecision(selected: true, reason: L("not modified for %@ (at least %ld required)", dayCount(age), days))
+                : DefaultDecision(selected: false, reason: L("activity %@ ago (at least %ld required)", dayCount(age), days))
         }
         return rule.risk == .safe
-            ? DefaultDecision(selected: true, reason: "безпечний кеш")
-            : DefaultDecision(selected: false, reason: "обережне правило: лише вручну")
+            ? DefaultDecision(selected: true, reason: L("safe cache"))
+            : DefaultDecision(selected: false, reason: L("careful rule: manual only"))
     }
 
     /// Чи вибирати елемент за замовчуванням після скану.

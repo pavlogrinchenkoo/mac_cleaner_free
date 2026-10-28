@@ -2,6 +2,15 @@ import Foundation
 import XCTest
 @testable import CleanerCore
 
+/// Базовий клас тестів. Більшість перевірок порівнює українські тексти інтерфейсу, тому тести йдуть українською
+/// незалежно від мови Mac (англійську перевіряє LocalizationTests).
+class CleanerTestCase: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        Loc.current = .uk
+    }
+}
+
 /// Підроблена домашня папка у temp, щоб тести ніколи не торкались справжньої.
 final class FakeHome {
     let url: URL

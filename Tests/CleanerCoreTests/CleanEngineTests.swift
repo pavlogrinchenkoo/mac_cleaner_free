@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class CleanEngineTests: XCTestCase {
+final class CleanEngineTests: CleanerTestCase {
     private func entries(for scanner: DiskScanner) -> [Entry] {
         scanner.discover().flatMap { result in
             result.entries.map { entry in

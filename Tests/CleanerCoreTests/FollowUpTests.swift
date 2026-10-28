@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class BulkSelectionPolicyTests: XCTestCase {
+final class BulkSelectionPolicyTests: CleanerTestCase {
     func testPersonalDataRulesCannotBeBulkSelected() throws {
         for category in FileCategory.allCases { XCTAssertFalse(category.rule.bulkSelectable, category.rule.id) }
         XCTAssertFalse(BackupProvider.rule.bulkSelectable)
@@ -33,7 +33,7 @@ final class BulkSelectionPolicyTests: XCTestCase {
     }
 }
 
-final class OptionalAppleAppsTests: XCTestCase {
+final class OptionalAppleAppsTests: CleanerTestCase {
     func testOptionalAppleAppsAreOfferedButSystemOnesAreNot() throws {
         let home = try FakeHome()
         let apps = home.path("Apps")
@@ -54,7 +54,7 @@ final class OptionalAppleAppsTests: XCTestCase {
     }
 }
 
-final class AdobeVersionsTests: XCTestCase {
+final class AdobeVersionsTests: CleanerTestCase {
     func testParsesNames() {
         XCTAssertEqual(AdobeVersions.parse("Adobe Photoshop 2025")?.product, "Adobe Photoshop")
         XCTAssertEqual(AdobeVersions.parse("Adobe Photoshop 2025")?.year, 2025)
@@ -115,7 +115,7 @@ final class AdobeVersionsTests: XCTestCase {
     }
 }
 
-final class TelegramRuleTests: XCTestCase {
+final class TelegramRuleTests: CleanerTestCase {
     func testOnlyMediaIsTargetedAndRunningTelegramBlocks() throws {
         let home = try FakeHome()
         let base = "Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram"
@@ -144,7 +144,7 @@ final class TelegramRuleTests: XCTestCase {
     }
 }
 
-final class SurveyDrillDownTests: XCTestCase {
+final class SurveyDrillDownTests: CleanerTestCase {
     func testBigFoldersAreExpandedOneLevel() throws {
         let home = try FakeHome()
         try home.makeFile("Lib/Preferences/huge/a.bin", bytes: 300_000)
@@ -184,12 +184,12 @@ final class SurveyDrillDownTests: XCTestCase {
             blockReason: { _, _ in nil }, apps: [], survey: survey, home: home.url)
         let text = DiagnosticReport.render(input)
         XCTAssertTrue(text.contains("Preferences"))
-        XCTAssertTrue(text.contains("└ 20 GB  adobe-cache"), text)
+        XCTAssertTrue(text.contains("└ 20 ГБ  adobe-cache"), text)
     }
 }
 
 /// Регресії, знайдені за реальним логом з чужого Mac.
-final class LogDrivenRegressionTests: XCTestCase {
+final class LogDrivenRegressionTests: CleanerTestCase {
     func testBundlePatternsAreCaseInsensitive() throws {
         // Реальний bundle ID Illustrator — з малої літери, а шаблон правила міг бути з великої.
         let snapshot = RunningSnapshot(bundleIDs: ["com.adobe.illustrator"], appNames: [])
@@ -249,7 +249,7 @@ final class LogDrivenRegressionTests: XCTestCase {
     }
 }
 
-final class BackgroundHelperTests: XCTestCase {
+final class BackgroundHelperTests: CleanerTestCase {
     func testBackgroundAgentDoesNotBlockTheAppsOwnCaches() {
         // Реальний випадок: працює лише фоновий figma_agent, сам Figma закрито.
         let snapshot = RunningSnapshot(
@@ -271,7 +271,7 @@ final class BackgroundHelperTests: XCTestCase {
     }
 }
 
-final class SurveyPinnedItemsTests: XCTestCase {
+final class SurveyPinnedItemsTests: CleanerTestCase {
     func testNotesAndIncompleteItemsSurviveTheTopCut() throws {
         let home = try FakeHome()
         // Більше елементів, ніж вміщає топ; «хмарна» тека має нульовий розмір і за розміром випала б.
@@ -302,7 +302,7 @@ final class SurveyPinnedItemsTests: XCTestCase {
     }
 }
 
-final class UserLogsRuleTests: XCTestCase {
+final class UserLogsRuleTests: CleanerTestCase {
     func testSystemManagedDiagnosticReportsFolderIsNeverOffered() throws {
         let home = try FakeHome()
         try home.makeFile("Library/Logs/SomeApp/app.log", bytes: 20_000)

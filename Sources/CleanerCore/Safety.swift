@@ -48,7 +48,9 @@ public struct ArtifactGuard: Sendable {
         guard path.hasPrefix(homePath + "/") else { return false }
         let relative = path.dropFirst(homePath.count + 1)
         guard let first = relative.split(separator: "/").first else { return false }
-        return !first.hasPrefix(".") && first != "Library" && first != "Applications"
+        // Без урахування регістру: `~/library` і `~/Library` — та сама тека.
+        let top = PathGuard.fold(String(first))
+        return !top.hasPrefix(".") && top != "library" && top != "applications"
     }
 
     public func validate(_ url: URL) throws {
@@ -88,6 +90,7 @@ public struct UserFileGuard: Sendable {
         "app", "photoslibrary", "fcpbundle", "lrdata", "imovielibrary", "musiclibrary", "tvlibrary",
         "logicx", "band", "sparsebundle", "xcodeproj", "xcworkspace", "playground", "framework",
         "bundle", "rtfd", "pkg", "mpkg", "dvdmedia", "theatre", "aplibrary",
+        "vmwarevm", "pvm", "utm", "lrlibrary", "pxd", "scriv", "sketchpad",
     ]
 
     public let home: URL
@@ -162,7 +165,21 @@ public struct ApplicationGuard: Sendable {
     ]
 
     static func isProtected(bundleID: String) -> Bool {
-        bundleID.hasPrefix("com.apple.") && !optionalAppleApps.contains(bundleID)
+        bundleID.lowercased().hasPrefix("com.apple.") && !optionalAppleApps.contains(bundleID)
+    }
+
+    /// Системні й особисті теки Apple, які ніколи не вважаємо «залишками» стороннього застосунку, хоч би що
+    /// написав у Info.plist його автор (назва чи bundle ID можуть збігатися: `AddressBook`, `Mail`, `CloudDocs`…).
+    private static let neverLeftoverNames: Set<String> = [
+        "addressbook", "mobilesync", "clouddocs", "mail", "safari", "messages", "keychains", "calendars",
+        "accounts", "cookies", "photos", "mobile documents", "cloudstorage", "icloud", "caches", "logs",
+        "preferences", "containers", "group containers", "application support", "default", "shared",
+    ]
+
+    static func isSystemLeftover(name: String) -> Bool {
+        let lower = name.lowercased()
+        return lower.hasPrefix("com.apple.") || lower.contains(".com.apple.") || lower.hasPrefix("group.com.apple.")
+            || neverLeftoverNames.contains(lower)
     }
 
     /// Куди можуть потрапляти залишки програм (відносно ~/Library). Нічого поза цим списком не чіпаємо.
@@ -222,6 +239,7 @@ public struct ApplicationGuard: Sendable {
             guard let folder = Self.leftoverFolders.first(where: { library + "/" + $0 == parent }) else {
                 throw GuardError.foreignLeftover(std.path)
             }
+            if Self.isSystemLeftover(name: name) { throw GuardError.foreignLeftover(std.path) }
             let byID = Self.matches(name: name, bundleID: bundleID)
             let byName = Self.nameMatchFolders.contains(folder) && names.contains(name)
             guard byID || byName else { throw GuardError.foreignLeftover(std.path) }

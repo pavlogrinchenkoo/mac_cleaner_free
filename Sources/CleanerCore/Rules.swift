@@ -5,7 +5,18 @@ public enum RuleLoader {
     public enum LoadError: Error, LocalizedError {
         case builtinMissing
 
-        public var errorDescription: String? { "Не знайшов вбудований rules.json" }
+        public var errorDescription: String? { L("Could not find the built-in rules.json") }
+    }
+
+    /// Translations of the built-in rules: `rules.<language>.json` next to `rules.json`.
+    /// Shape: `{"groups": {"<group id>": "<title>"}, "rules": {"<rule id>": {"title": "…", "detail": "…"}}}`.
+    struct RuleTranslations: Decodable {
+        struct Texts: Decodable {
+            var title: String?
+            var detail: String?
+        }
+        var groups: [String: String] = [:]
+        var rules: [String: Texts] = [:]
     }
 
     /// Свої правила можна додати без перекомпіляції сюди:
@@ -14,32 +25,59 @@ public enum RuleLoader {
         home.appendingPathComponent("Library/Application Support/Cleaner/rules.json")
     }
 
+    /// Ресурс `<name>.json`: у зібраному .app скрипт кладе його прямо в Contents/Resources,
+    /// а при `swift run`/тестах він лежить у SwiftPM-бандлі поруч із виконуваним файлом.
+    static func resourceURL(_ name: String) -> URL? {
+        if let url = Bundle.main.url(forResource: name, withExtension: "json") { return url }
+        return Bundle.module.url(forResource: name, withExtension: "json")
+    }
+
     public static func builtinRulesURL() -> URL? {
-        // У зібраному .app скрипт кладе rules.json прямо в Contents/Resources.
-        if let url = Bundle.main.url(forResource: "rules", withExtension: "json") { return url }
-        // При `swift run`/тестах ресурс лежить у SwiftPM-бандлі поруч із виконуваним файлом.
-        return Bundle.module.url(forResource: "rules", withExtension: "json")
+        resourceURL("rules")
     }
 
     public static func decode(_ data: Data) throws -> RuleSet {
         try JSONDecoder().decode(RuleSet.self, from: data)
     }
 
-    public static func builtin() throws -> RuleSet {
+    /// Вбудовані правила (англійською) з перекладом назв і описів на `language`, якщо переклад є.
+    public static func builtin(language: Language = Loc.current) throws -> RuleSet {
         guard let url = builtinRulesURL() else { throw LoadError.builtinMissing }
-        return try decode(Data(contentsOf: url))
+        var set = try decode(Data(contentsOf: url))
+        guard language != .en,
+              let translationURL = resourceURL("rules.\(language.rawValue)"),
+              let data = try? Data(contentsOf: translationURL),
+              let translations = try? JSONDecoder().decode(RuleTranslations.self, from: data)
+        else { return set }
+
+        set.groups = set.groups.map { group in
+            guard let title = translations.groups[group.id] else { return group }
+            return CleanupGroup(id: group.id, title: title, symbol: group.symbol)
+        }
+        for index in set.rules.indices {
+            guard let texts = translations.rules[set.rules[index].id] else { continue }
+            if let title = texts.title { set.rules[index].title = title }
+            if let detail = texts.detail { set.rules[index].detail = detail }
+        }
+        return set
     }
 
     /// Вбудовані правила + правила користувача (якщо файл є). Правило з тим самим `id` перекриває вбудоване.
-    public static func load(home: URL = FileManager.default.homeDirectoryForCurrentUser) throws -> RuleSet {
-        var set = try builtin()
+    /// Правила користувача лишаються такими, як написані: вони не перекладаються. Їх позначено `isCustom`:
+    /// вони не вибираються самі, а `requiresAdmin` з файлу ігнорується.
+    public static func load(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser, language: Language = Loc.current
+    ) throws -> RuleSet {
+        var set = try builtin(language: language)
         let userURL = userRulesURL(home: home)
         guard let data = try? Data(contentsOf: userURL) else { return set }
         let user = try decode(data)
         for group in user.groups where !set.groups.contains(where: { $0.id == group.id }) {
             set.groups.append(group)
         }
-        for rule in user.rules {
+        for var rule in user.rules {
+            rule.isCustom = true
+            rule.requiresAdmin = false
             if let index = set.rules.firstIndex(where: { $0.id == rule.id }) {
                 set.rules[index] = rule
             } else {

@@ -8,16 +8,19 @@ paid cleaners when you want to see exactly what is about to be deleted.
 - A **dry run** mode shows exactly what would happen and deletes nothing.
 - Personal files are never selected for you, and are moved to the Trash (recoverable), not erased.
 - Built for designers and developers alike: Adobe, Figma, Affinity, Pixelmator, Xcode, Android, `node_modules`, and more.
-
-> **Language:** the app interface is currently in **Ukrainian**. Button labels are given in this guide in
-> parentheses so you can find them. English localization is planned.
+- **English and Ukrainian** interface. It follows your Mac's language; switch any time with the globe button in the
+  sidebar.
 
 ## Download
 
-1. Go to the [**latest release**](https://github.com/pavlogrinchenkoo/clean_my_mac_free/releases/latest).
-2. Download **`Cleaner-<version>.dmg`**.
+1. Open the [**Releases page**](https://github.com/pavlogrinchenkoo/clean_my_mac_free/releases/latest).
+2. Under **Assets**, click **`Cleaner-<version>.dmg`** to download it. (Ignore "Source code (zip / tar.gz)": that is
+   the code for developers, not the app.)
+3. Optional: check the download. The release notes list its SHA-256; compare with
+   `shasum -a 256 ~/Downloads/Cleaner-<version>.dmg`.
 
-Requires **macOS 14 (Sonoma) or newer**. Runs natively on Apple Silicon and Intel.
+Requires **macOS 14 (Sonoma) or newer**. Runs natively on Apple Silicon and Intel. No account, no network access,
+no installer: just drag-and-drop.
 
 ## Install and first launch
 
@@ -30,14 +33,18 @@ Requires **macOS 14 (Sonoma) or newer**. Runs natively on Apple Silicon and Inte
      double-click Cleaner again and go back to Settings.
    - Alternative, in Terminal: `xattr -dr com.apple.quarantine /Applications/Cleaner.app`
 4. Cleaner will offer to guide you through **Full Disk Access** (see below). It is optional but recommended.
+   In the list it appears as **Cleaner**.
 
 You only need to do this once.
+
+**Uninstall:** drag Cleaner from Applications to the Trash. Its logs and settings are in
+`~/Library/Application Support/Cleaner` (delete that folder too if you like).
 
 ## Permissions
 
 | Permission | Why | Required? |
 |---|---|---|
-| **Full Disk Access** | To see the Trash, iPhone backups, Mail downloads and protected folders. macOS does not let apps enable it themselves, so Cleaner opens the right Settings pane and shows the app in Finder to drag in. It takes effect after a restart of the app (the "Перезапустити" button). | Optional. Everything else works without it. |
+| **Full Disk Access** | To see the Trash, iPhone backups, Mail downloads and protected folders. macOS does not let apps enable it themselves, so Cleaner opens the right Settings pane and shows the app in Finder to drag in. It takes effect after a restart of the app (the Restart button). | Optional. Everything else works without it. |
 | **Administrator password** | Only for system folders (`/Library/Caches`, `/Library/Logs`) and apps installed by an administrator. These items are **off by default**; the password prompt appears only if you select them and confirm. | Optional |
 | **Documents / Desktop / Downloads** | macOS may ask once, because the app lists big files, duplicates and installers there. | Optional |
 
@@ -46,12 +53,12 @@ You only need to do this once.
 
 ## How to use
 
-1. Open Cleaner and wait for the scan to finish (the "Сканую…" label at the bottom left disappears; groups with nothing to clean are hidden).
+1. Open Cleaner and wait for the scan to finish (the "Scanning…" label at the bottom left disappears; groups with nothing to clean are hidden).
 2. Click a group in the sidebar to see its items with sizes and age. Safe caches are pre-selected; everything
    risky or personal is not.
-3. Switch on **Dry run** («Пробний запуск») at the bottom and press **Check** («Перевірити»). Nothing is deleted:
+3. Switch on **Dry run** at the bottom and press **Check**. Nothing is deleted:
    you get a report of what would be removed.
-4. Switch the dry run off, press **Clean** («Очистити…») and confirm. The summary shows what was freed and what
+4. Switch the dry run off, press **Clean…** and confirm. The summary shows what was freed and what
    went to the Trash. Space from the Trash is released when you empty it.
 
 The checkbox next to a group only selects the **recommended** items. It can never select personal files,
@@ -78,7 +85,10 @@ Groups that do not apply to your Mac are not shown: a designer will not see Xcod
 
 Cleaner is conservative by design.
 
-- It only touches paths listed in its rules, never arbitrary ones, and re-checks every path right before acting.
+- It only touches paths listed in its rules, never arbitrary ones, and re-checks every path right before acting:
+  case-insensitively (macOS volumes ignore case) and after resolving symlinks, so a link cannot smuggle a protected
+  folder in. The administrator-rights step checks the paths once more immediately before running `rm`, and refuses
+  anything except `/Library/Caches`, `/Library/Logs` and installed `.app` bundles.
 - It refuses your home folder, Documents, Desktop, Downloads, Mail, Messages, keychains, `.ssh`, iCloud Drive and
   anything outside your home folder (except the two system cache/log folders above, with your password).
 - **Personal files, duplicates, iPhone backups and uninstalled apps go to the Trash**, are never pre-selected,
@@ -90,19 +100,27 @@ Cleaner is conservative by design.
 - Projects: only well-known folders (`node_modules`, `build`…) inside project folders you added yourself, and only
   next to real project files (`package.json`, `Podfile`, `*.xcodeproj`…).
 - A symlink is removed itself, never the thing it points to.
-- Every real clean writes a log to `~/Library/Application Support/Cleaner/logs/`.
+- Your own rules (`rules.json` in Application Support) are trusted only so far: they are **never selected automatically**,
+  cannot ask for administrator rights, and are marked as custom in the report.
+- The app makes no network connections, and is built with the hardened runtime.
+- Every real clean writes a log to `~/Library/Application Support/Cleaner/logs/`. Logs and reports are readable only by
+  you (folder `0700`, files `0600`) and show paths as `~/…`.
 
 **Use at your own risk and always start with a dry run.** The software is provided as is, without warranty.
 
 ## Help improve the rules: send a diagnostic report
 
 Different Macs have different apps, and Cleaner's rules grow from real data. Every dry run saves a report to
-`~/Library/Application Support/Cleaner/logs/dryrun-<date>.txt` and offers **Share…** («Поділитися…»). The report
+`~/Library/Application Support/Cleaner/logs/dryrun-<date>.txt` and offers **Share…**. The report
 contains: app and macOS versions, free space, everything found, what was selected automatically or by you, what was
 blocked and why, your installed apps, and a map of the biggest folders in `~/Library` and your user folders.
 
-It contains **file and app names from your Mac**, so please read it before sending. If you want to help, attach it
-to an [issue](https://github.com/pavlogrinchenkoo/clean_my_mac_free/issues).
+The report hides your user name (`~` and `/Users/<user>`) and does not name iPhone backups or devices, but it still
+contains **names of files, folders and apps from your Mac**, including the biggest items in Documents, Desktop,
+Downloads, Pictures, Movies and Music. **Read it before sending, and do not post it publicly unless you removed anything
+private.** If you want to help, send it privately (for example by message to the maintainer) or attach it to an
+[issue](https://github.com/pavlogrinchenkoo/clean_my_mac_free/issues) only after reading it and removing anything
+private: everything on GitHub issues is public.
 
 ## Build from source
 
@@ -122,11 +140,27 @@ scripts/selftest.sh              # headless self-check on your Mac (dry run only
 
 Add `~/Library/Application Support/Cleaner/rules.json` in the same format as the built-in
 [`rules.json`](Sources/CleanerCore/rules.json). A rule with the same `id` overrides the built-in one. All paths still
-pass through the safety guards.
+pass through the safety guards, and your rules are never selected automatically (you tick items yourself) and cannot
+use `requiresAdmin`. Only paste rules from sources you trust.
 
 A Ukrainian developer guide with architecture and design notes is in [README.uk.md](README.uk.md).
+Security problems: see [SECURITY.md](SECURITY.md) (please report privately).
 
 ## Status
 
-Version 1.0.0. Known limitations: the interface is Ukrainian only; the app is not notarized (hence the first-launch
-steps above); local Time Machine snapshots and `brew cleanup` are not handled yet. See [CHANGELOG.md](CHANGELOG.md).
+Version 1.1.0. Known limitations: the app is not notarized (hence the first-launch steps above); local Time Machine
+snapshots and `brew cleanup` are not handled yet. See [CHANGELOG.md](CHANGELOG.md).
+
+## Translations
+
+The interface language is chosen in the app (globe button; default: your Mac's language). To add or fix a language:
+
+- UI and report texts: English is the source language and every user-visible string in the code goes through
+  `L("English text")`. Translations live in `Sources/CleanerCore/Localization/Strings.*.swift`
+  (`"English text": "Translation"`); the tests check that every string has a translation and the same format specifiers.
+- Built-in cleaning rules (names and descriptions): `Sources/CleanerCore/rules.<language>.json`, e.g. `rules.uk.json`.
+- Your own rules in `~/Library/Application Support/Cleaner/rules.json` are shown as written.
+
+## License
+
+[MIT](LICENSE) © 2026 Pavlo Grinchenko. Use at your own risk; there is no warranty.

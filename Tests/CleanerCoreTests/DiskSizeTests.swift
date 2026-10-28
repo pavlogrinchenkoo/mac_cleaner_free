@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class DiskSizeTests: XCTestCase {
+final class DiskSizeTests: CleanerTestCase {
     func testMissingPathIsZero() {
         let result = DiskSize.measure(URL(fileURLWithPath: "/definitely/not/here-\(UUID().uuidString)"))
         XCTAssertEqual(result.bytes, 0)
@@ -38,7 +38,7 @@ final class DiskSizeTests: XCTestCase {
     }
 }
 
-final class CloudAndBudgetTests: XCTestCase {
+final class CloudAndBudgetTests: CleanerTestCase {
     func testCloudProviderDirectoriesAreRecognized() {
         XCTAssertTrue(DiskSize.isCloudProviderDirectory("/Users/u/Library/Mobile Documents"))
         XCTAssertTrue(DiskSize.isCloudProviderDirectory("/Users/u/Library/Mobile Documents/iCloud~com~x/Documents"))
@@ -130,7 +130,7 @@ final class CloudAndBudgetTests: XCTestCase {
             projectRoots: [], fileSettings: nil, groups: [], results: [], selectedIDs: [], ruleBlocks: [:],
             blockReason: { _, _ in nil }, apps: [], survey: survey, home: home.url)
         let text = DiagnosticReport.render(input)
-        XCTAssertTrue(text.contains("≥ 3 GB"), text)
+        XCTAssertTrue(text.contains("≥ 3 ГБ"), text)
         XCTAssertTrue(text.contains("Не всі розміри дорахувались (1)"))
         XCTAssertTrue(text.contains("iCloud Drive: вміст не міряю"))
     }

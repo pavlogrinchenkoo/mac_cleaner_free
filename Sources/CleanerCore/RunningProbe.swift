@@ -63,11 +63,11 @@ public enum RunningProbe {
                 guard let id = $0.bundleIdentifier else { return false }
                 return RunningSnapshot.matches(bundleID: id, pattern: pattern)
             }
-            if let name = running?.localizedName { return "Закрий \(name)" }
-            return "Закрий застосунок \(pattern)"
+            if let name = running?.localizedName { return L("Quit %@", name) }
+            return L("Quit the app %@", pattern)
         }
         for pattern in rule.blockedByProcesses where processExists(matching: pattern) {
-            return "Запущений процес «\(pattern)». Для Gradle: ./gradlew --stop"
+            return L("Process “%@” is running. For Gradle: ./gradlew --stop", pattern)
         }
         return nil
     }

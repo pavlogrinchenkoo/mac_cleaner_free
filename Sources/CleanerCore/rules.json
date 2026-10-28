@@ -1,22 +1,22 @@
 {
   "groups": [
-    { "id": "apps",      "title": "Кеші застосунків",      "symbol": "app.dashed" },
-    { "id": "design",    "title": "Дизайн і медіа",        "symbol": "paintpalette" },
-    { "id": "files",     "title": "Файли та копії",        "symbol": "doc.on.doc" },
-    { "id": "uninstall", "title": "Деінсталятор",          "symbol": "xmark.bin" },
-    { "id": "projects",  "title": "Проєкти (node_modules, build, Pods…)", "symbol": "folder" },
-    { "id": "xcode",     "title": "Xcode та симулятори",   "symbol": "hammer" },
-    { "id": "android",   "title": "Android та Gradle",     "symbol": "cpu" },
-    { "id": "devtools",  "title": "Менеджери пакетів",     "symbol": "shippingbox" },
-    { "id": "ide",       "title": "IDE (JetBrains, Android Studio)", "symbol": "chevron.left.forwardslash.chevron.right" },
-    { "id": "system",    "title": "Система та логи",       "symbol": "gearshape" }
+    { "id": "apps",      "title": "App caches",            "symbol": "app.dashed" },
+    { "id": "design",    "title": "Design & media",        "symbol": "paintpalette" },
+    { "id": "files",     "title": "Files & copies",        "symbol": "doc.on.doc" },
+    { "id": "uninstall", "title": "Uninstaller",           "symbol": "xmark.bin" },
+    { "id": "projects",  "title": "Projects (node_modules, build, Pods…)", "symbol": "folder" },
+    { "id": "xcode",     "title": "Xcode & simulators",    "symbol": "hammer" },
+    { "id": "android",   "title": "Android & Gradle",      "symbol": "cpu" },
+    { "id": "devtools",  "title": "Package managers",      "symbol": "shippingbox" },
+    { "id": "ide",       "title": "IDEs (JetBrains, Android Studio)", "symbol": "chevron.left.forwardslash.chevron.right" },
+    { "id": "system",    "title": "System & logs",         "symbol": "gearshape" }
   ],
   "rules": [
     {
       "id": "xcode.derivedData",
       "group": "xcode",
       "title": "Xcode DerivedData",
-      "detail": "Проміжні результати збірки проєктів. Наступна збірка кожного проєкту буде довшою.",
+      "detail": "Intermediate build products of your projects. The next build of each project will take longer.",
       "risk": "safe",
       "paths": ["~/Library/Developer/Xcode/DerivedData"],
       "granularity": "children",
@@ -25,8 +25,8 @@
     {
       "id": "xcode.deviceSupport",
       "group": "xcode",
-      "title": "Символи пристроїв (DeviceSupport)",
-      "detail": "Xcode завантажує їх з iPhone/iPad при підключенні. Після видалення перше підключення пристрою буде довшим.",
+      "title": "Device support symbols (DeviceSupport)",
+      "detail": "Xcode downloads these from an iPhone/iPad when you connect it. After deletion, the first connection of a device will take longer.",
       "risk": "safe",
       "paths": [
         "~/Library/Developer/Xcode/iOS DeviceSupport",
@@ -39,8 +39,8 @@
     {
       "id": "xcode.caches",
       "group": "xcode",
-      "title": "Кеші Xcode та симуляторів",
-      "detail": "Службові кеші Xcode і CoreSimulator. Відновляться при наступному запуску.",
+      "title": "Xcode and simulator caches",
+      "detail": "Internal Xcode and CoreSimulator caches. They are rebuilt on the next launch.",
       "risk": "safe",
       "paths": [
         "~/Library/Caches/com.apple.dt.Xcode",
@@ -53,7 +53,7 @@
       "id": "xcode.archives",
       "group": "xcode",
       "title": "Xcode Archives",
-      "detail": "Архіви збірок разом із dSYM. Без них не вдасться символікувати краші вже випущених версій.",
+      "detail": "Build archives together with their dSYMs. Without them you cannot symbolicate crashes of versions you have already released.",
       "risk": "careful",
       "paths": ["~/Library/Developer/Xcode/Archives"],
       "granularity": "children",
@@ -62,16 +62,16 @@
     {
       "id": "xcode.simulatorRuntimes",
       "group": "xcode",
-      "title": "Runtimes iOS-симуляторів",
-      "detail": "Образи iOS/watchOS для симуляторів, по 7–10 ГБ кожен. Видаляє `xcrun simctl runtime delete`. Потрібний runtime можна докачати в налаштуваннях Xcode (Components). Дублікати (17.0 і 17.0.1) позначені.",
+      "title": "iOS simulator runtimes",
+      "detail": "iOS/watchOS images for simulators, 7–10 GB each. Removed with `xcrun simctl runtime delete`. You can download the runtime you need again in Xcode settings (Components). Duplicates (17.0 and 17.0.1) are marked.",
       "risk": "careful",
       "provider": "simctl.runtimes"
     },
     {
       "id": "xcode.simulatorDevices",
       "group": "xcode",
-      "title": "Симулятори (пристрої)",
-      "detail": "Створені симулятори разом з даними встановлених застосунків. Видаляє `xcrun simctl delete`. Нові створюються в Xcode → Window → Devices and Simulators.",
+      "title": "Simulators (devices)",
+      "detail": "Created simulators together with the data of the apps installed on them. Removed with `xcrun simctl delete`. New ones are created in Xcode → Window → Devices and Simulators.",
       "risk": "careful",
       "provider": "simctl.devices"
     },
@@ -80,7 +80,7 @@
       "id": "gradle.caches",
       "group": "android",
       "title": "Gradle caches",
-      "detail": "Завантажені залежності й результати збірок. Наступна збірка Android-проєкту докачає все заново (потрібен інтернет).",
+      "detail": "Downloaded dependencies and build results. The next Android project build will download everything again (internet required).",
       "risk": "safe",
       "paths": ["~/.gradle/caches"],
       "granularity": "children",
@@ -90,8 +90,8 @@
     {
       "id": "gradle.wrapper",
       "group": "android",
-      "title": "Дистрибутиви Gradle (wrapper)",
-      "detail": "Окремі версії Gradle для проєктів. Потрібну версію Gradle докачає сам при наступній збірці.",
+      "title": "Gradle distributions (wrapper)",
+      "detail": "Separate Gradle versions for projects. Gradle downloads the version it needs on the next build.",
       "risk": "safe",
       "paths": ["~/.gradle/wrapper/dists"],
       "granularity": "children",
@@ -101,8 +101,8 @@
     {
       "id": "gradle.jdks",
       "group": "android",
-      "title": "JDK, завантажені Gradle",
-      "detail": "Toolchain-JDK, які Gradle завантажив сам. Докачаються при потребі.",
+      "title": "JDKs downloaded by Gradle",
+      "detail": "Toolchain JDKs that Gradle downloaded by itself. They are downloaded again when needed.",
       "risk": "safe",
       "paths": ["~/.gradle/jdks"],
       "granularity": "children",
@@ -112,8 +112,8 @@
     {
       "id": "android.avd",
       "group": "android",
-      "title": "Android-емулятори (AVD)",
-      "detail": "Образи віртуальних пристроїв з усіма їхніми даними (зазвичай 5–15 ГБ кожен). Створюються заново в Android Studio → Device Manager.",
+      "title": "Android emulators (AVD)",
+      "detail": "Virtual device images with all their data (usually 5–15 GB each). Create them again in Android Studio → Device Manager.",
       "risk": "careful",
       "paths": ["~/.android/avd"],
       "granularity": "children",
@@ -124,8 +124,8 @@
     {
       "id": "android.ndk",
       "group": "android",
-      "title": "Версії Android NDK",
-      "detail": "Окремі версії NDK. Gradle докачає потрібну сам, якщо вона вказана в проєкті (ndkVersion).",
+      "title": "Android NDK versions",
+      "detail": "Individual NDK versions. Gradle downloads the one you need if the project specifies it (ndkVersion).",
       "risk": "careful",
       "paths": ["~/Library/Android/sdk/ndk"],
       "granularity": "children",
@@ -135,8 +135,8 @@
     {
       "id": "npm.cache",
       "group": "devtools",
-      "title": "npm кеш",
-      "detail": "Кеш завантажених пакетів. npm докачає потрібне при наступному install.",
+      "title": "npm cache",
+      "detail": "Cache of downloaded packages. npm downloads what it needs on the next install.",
       "risk": "safe",
       "paths": ["~/.npm/_cacache", "~/.npm/_logs", "~/.npm/_npx", "~/.npm/_prebuilds", "~/.npm/_libvips"],
       "granularity": "self"
@@ -144,8 +144,8 @@
     {
       "id": "yarn.cache",
       "group": "devtools",
-      "title": "Yarn кеш",
-      "detail": "Кеш пакетів Yarn. Докачається при наступному install.",
+      "title": "Yarn cache",
+      "detail": "Yarn package cache. Downloaded again on the next install.",
       "risk": "safe",
       "paths": ["~/Library/Caches/Yarn"],
       "granularity": "children"
@@ -153,8 +153,8 @@
     {
       "id": "cocoapods.cache",
       "group": "devtools",
-      "title": "CocoaPods кеш",
-      "detail": "Кеш завантажених подів. `pod install` докачає потрібне.",
+      "title": "CocoaPods cache",
+      "detail": "Cache of downloaded pods. `pod install` downloads what it needs.",
       "risk": "safe",
       "paths": ["~/Library/Caches/CocoaPods"],
       "granularity": "children"
@@ -162,8 +162,8 @@
     {
       "id": "swiftpm.cache",
       "group": "devtools",
-      "title": "Swift Package Manager кеш",
-      "detail": "Клони й артефакти пакетів. Xcode завантажить заново при розв'язанні залежностей.",
+      "title": "Swift Package Manager cache",
+      "detail": "Package clones and artifacts. Xcode downloads them again when it resolves dependencies.",
       "risk": "safe",
       "paths": ["~/Library/Caches/org.swift.swiftpm"],
       "granularity": "children",
@@ -172,8 +172,8 @@
     {
       "id": "homebrew.cache",
       "group": "devtools",
-      "title": "Homebrew кеш",
-      "detail": "Завантажені інсталятори й індекси. Для старих версій формул окремо є `brew cleanup`.",
+      "title": "Homebrew cache",
+      "detail": "Downloaded installers and indexes. For old versions of formulae there is a separate `brew cleanup`.",
       "risk": "safe",
       "paths": ["~/Library/Caches/Homebrew"],
       "granularity": "children",
@@ -182,8 +182,8 @@
     {
       "id": "devtools.misc",
       "group": "devtools",
-      "title": "Кеші збірки (node-gyp, Next.js, TypeScript, pip)",
-      "detail": "Кеші інструментів збірки. Відновляться при наступному використанні.",
+      "title": "Build tool caches (node-gyp, Next.js, TypeScript, pip)",
+      "detail": "Caches of build tools. They are recreated on next use.",
       "risk": "safe",
       "paths": [
         "~/Library/Caches/node-gyp",
@@ -196,8 +196,8 @@
     {
       "id": "playwright.browsers",
       "group": "devtools",
-      "title": "Браузери Playwright",
-      "detail": "Завантажені Chromium/Firefox/WebKit для тестів. Повертаються командою `npx playwright install`.",
+      "title": "Playwright browsers",
+      "detail": "Chromium/Firefox/WebKit downloaded for tests. Restore them with `npx playwright install`.",
       "risk": "safe",
       "paths": ["~/Library/Caches/ms-playwright"],
       "granularity": "children"
@@ -206,8 +206,8 @@
     {
       "id": "ide.androidStudioCaches",
       "group": "ide",
-      "title": "Кеші старих версій Android Studio",
-      "detail": "Індекси й кеші версій, якими ти давно не користувався. Остання версія та все, що змінювалось за 30 днів, лишається.",
+      "title": "Caches of old Android Studio versions",
+      "detail": "Indexes and caches of versions you have not used for a long time. The latest version and anything changed within 30 days are kept.",
       "risk": "safe",
       "paths": ["~/Library/Caches/Google/AndroidStudio*"],
       "granularity": "self",
@@ -217,8 +217,8 @@
     {
       "id": "ide.jetbrainsCaches",
       "group": "ide",
-      "title": "Кеші старих версій JetBrains IDE",
-      "detail": "Індекси й кеші старих версій WebStorm, IntelliJ тощо. Остання версія та все, що змінювалось за 30 днів, лишається.",
+      "title": "Caches of old JetBrains IDE versions",
+      "detail": "Indexes and caches of old versions of WebStorm, IntelliJ, etc. The latest version and anything changed within 30 days are kept.",
       "risk": "safe",
       "paths": ["~/Library/Caches/JetBrains/*"],
       "granularity": "self",
@@ -228,8 +228,8 @@
     {
       "id": "ide.androidStudioConfigs",
       "group": "ide",
-      "title": "Налаштування старих версій Android Studio",
-      "detail": "Налаштування, плагіни й локальна історія версій, якими ти давно не користувався (30+ днів). Обережно: це не кеш.",
+      "title": "Settings of old Android Studio versions",
+      "detail": "Settings, plugins and local history of versions you have not used for a long time (30+ days). Careful: this is not a cache.",
       "risk": "careful",
       "paths": ["~/Library/Application Support/Google/AndroidStudio*"],
       "granularity": "self",
@@ -239,8 +239,8 @@
     {
       "id": "ide.jetbrainsConfigs",
       "group": "ide",
-      "title": "Налаштування старих версій JetBrains IDE",
-      "detail": "Налаштування й плагіни старих версій (30+ днів без змін). Обережно: це не кеш.",
+      "title": "Settings of old JetBrains IDE versions",
+      "detail": "Settings and plugins of old versions (unchanged for 30+ days). Careful: this is not a cache.",
       "risk": "careful",
       "paths": ["~/Library/Application Support/JetBrains/*"],
       "granularity": "self",
@@ -251,8 +251,8 @@
     {
       "id": "design.adobeMediaCache",
       "group": "design",
-      "title": "Adobe: кеш відео (Media Cache, Peak Files)",
-      "detail": "Кеш Premiere Pro, After Effects, Media Encoder. Часто займає десятки ГБ. Перебудується сам, але перший перегляд проєктів буде повільнішим.",
+      "title": "Adobe: video cache (Media Cache, Peak Files)",
+      "detail": "Cache of Premiere Pro, After Effects, Media Encoder. Often takes tens of GB. It rebuilds itself, but the first preview of your projects will be slower.",
       "risk": "safe",
       "paths": [
         "~/Library/Application Support/Adobe/Common/Media Cache Files",
@@ -265,8 +265,8 @@
     {
       "id": "design.adobeCaches",
       "group": "design",
-      "title": "Adobe: кеші програм",
-      "detail": "Кеші Photoshop, Illustrator, Lightroom, Camera Raw, After Effects (дисковий кеш) та інших. Відновляться, але перший запуск може бути довшим.",
+      "title": "Adobe: app caches",
+      "detail": "Caches of Photoshop, Illustrator, Lightroom, Camera Raw, After Effects (disk cache) and others. They are rebuilt, but the first launch may take longer.",
       "risk": "safe",
       "paths": ["~/Library/Caches/Adobe*", "~/Library/Caches/com.adobe.*", "~/Library/Caches/AI_*", "~/Library/Caches/CSXS"],
       "granularity": "self",
@@ -278,8 +278,8 @@
     {
       "id": "apps.electronCaches",
       "group": "apps",
-      "title": "Кеші Figma, Discord, Slack та інших програм",
-      "detail": "Веб-кеші програм на Electron/Chromium (Figma, Discord, Slack, Notion, VS Code…). Не чіпаю профіль, паролі й документи, лише теки Cache. Програми відновлять їх самі.",
+      "title": "Caches of Figma, Discord, Slack and other apps",
+      "detail": "Web caches of Electron/Chromium apps (Figma, Discord, Slack, Notion, VS Code…). Profiles, passwords and documents are never touched, only the Cache folders. The apps rebuild them themselves.",
       "risk": "safe",
       "paths": [
         "~/Library/Application Support/*/{Cache,Code Cache,GPUCache,DawnWebGPUCache,DawnGraphiteCache,DawnCache,GrShaderCache,ShaderCache}",
@@ -295,8 +295,8 @@
     {
       "id": "apps.sandboxCaches",
       "group": "apps",
-      "title": "Кеші програм у Containers (Affinity, Pixelmator…)",
-      "detail": "Кеші програм, що працюють у пісочниці. Системні програми Apple тут не показую. Відновляться самі.",
+      "title": "Sandboxed app caches in Containers (Affinity, Pixelmator…)",
+      "detail": "Caches of apps that run in a sandbox. Apple's system apps are not listed here. They are rebuilt automatically.",
       "risk": "safe",
       "paths": ["~/Library/Containers/*/Data/Library/Caches"],
       "granularity": "self",
@@ -307,8 +307,8 @@
     {
       "id": "apps.groupCaches",
       "group": "apps",
-      "title": "Кеші в Group Containers",
-      "detail": "Спільні кеші програм одного розробника. Системні (Apple) тут не показую.",
+      "title": "Caches in Group Containers",
+      "detail": "Shared caches of apps from the same developer. System (Apple) ones are not listed here.",
       "risk": "safe",
       "paths": ["~/Library/Group Containers/*/Library/Caches"],
       "granularity": "self",
@@ -319,8 +319,8 @@
     {
       "id": "apps.safariCache",
       "group": "apps",
-      "title": "Кеш Safari",
-      "detail": "Лише кеш сторінок. Закладки, історія й паролі лишаються. Сторінки спершу вантажитимуться повільніше. Потрібен Full Disk Access.",
+      "title": "Safari cache",
+      "detail": "Page cache only. Bookmarks, history and passwords are kept. Pages will load slower at first. Requires Full Disk Access.",
       "risk": "safe",
       "paths": ["~/Library/Containers/com.apple.Safari/Data/Library/Caches", "~/Library/Caches/com.apple.Safari"],
       "granularity": "self",
@@ -329,8 +329,8 @@
     {
       "id": "apps.telegramMedia",
       "group": "apps",
-      "title": "Telegram: завантажені медіа (кеш)",
-      "detail": "Фото, відео й файли з чатів, які Telegram зберіг на диску. Зазвичай по кілька ГБ. З хмари вони завантажаться знову. Секретні чати й ще не відправлені файли не відновляться. Telegram має бути закритий.",
+      "title": "Telegram: downloaded media (cache)",
+      "detail": "Photos, videos and files from chats that Telegram saved on disk. Usually several GB. They are downloaded again from the cloud. Secret chats and files that have not been sent yet cannot be restored. Telegram must be closed.",
       "risk": "careful",
       "paths": ["~/Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram/{stable,appstore}/account-*/postbox/media"],
       "granularity": "self",
@@ -339,8 +339,8 @@
     {
       "id": "chrome.cache",
       "group": "apps",
-      "title": "Кеш Chrome",
-      "detail": "Лише кеш сторінок. Профіль, закладки й паролі не чіпаю. Сторінки спершу вантажитимуться повільніше.",
+      "title": "Chrome cache",
+      "detail": "Page cache only. Your profile, bookmarks and passwords are never touched. Pages will load slower at first.",
       "risk": "safe",
       "paths": ["~/Library/Caches/Google/Chrome"],
       "granularity": "self",
@@ -349,8 +349,8 @@
     {
       "id": "claude.vm",
       "group": "apps",
-      "title": "Claude: образ віртуальної машини",
-      "detail": "Образ VM, який Claude для робочого столу створює для ізольованих завдань. Створиться заново при потребі.",
+      "title": "Claude: virtual machine image",
+      "detail": "The VM image that Claude for desktop creates for isolated tasks. It is created again when needed.",
       "risk": "careful",
       "paths": ["~/Library/Application Support/Claude/vm_bundles"],
       "granularity": "children",
@@ -359,8 +359,8 @@
     {
       "id": "apps.caches",
       "group": "apps",
-      "title": "Кеші решти застосунків",
-      "detail": "Кеші застосунків, не покриті іншими правилами. Системні (com.apple.*) і запущені застосунки пропускаю.",
+      "title": "Caches of other apps",
+      "detail": "Caches of apps not covered by other rules. System (com.apple.*) and running apps are skipped.",
       "risk": "safe",
       "paths": ["~/Library/Caches"],
       "granularity": "children",
@@ -372,8 +372,8 @@
     {
       "id": "system.logs",
       "group": "system",
-      "title": "Логи застосунків",
-      "detail": "Журнали й звіти про збої. Нікому не потрібні, поки ти не розбираєш проблему.",
+      "title": "App logs",
+      "detail": "Logs and crash reports. Nobody needs them unless you are investigating a problem.",
       "risk": "safe",
       "paths": ["~/Library/Logs"],
       "granularity": "children",
@@ -382,8 +382,8 @@
     {
       "id": "system.libCaches",
       "group": "system",
-      "title": "Системні кеші (/Library/Caches)",
-      "detail": "Кеші, спільні для всіх користувачів. macOS попросить пароль адміна. За замовчуванням вимкнено.",
+      "title": "System caches (/Library/Caches)",
+      "detail": "Caches shared by all users. macOS will ask for the administrator password. Off by default.",
       "risk": "safe",
       "paths": ["/Library/Caches"],
       "granularity": "children",
@@ -393,8 +393,8 @@
     {
       "id": "system.libLogs",
       "group": "system",
-      "title": "Системні логи (/Library/Logs)",
-      "detail": "Журнали, спільні для всіх користувачів. macOS попросить пароль адміна. За замовчуванням вимкнено.",
+      "title": "System logs (/Library/Logs)",
+      "detail": "Logs shared by all users. macOS will ask for the administrator password. Off by default.",
       "risk": "safe",
       "paths": ["/Library/Logs"],
       "granularity": "children",
@@ -404,8 +404,8 @@
     {
       "id": "system.appleContainerCaches",
       "group": "system",
-      "title": "Кеші системних служб Apple (Containers)",
-      "detail": "Кеші служб macOS: наприклад аналізу фото (mediaanalysisd) і підключення пристроїв до Xcode. Займають гігабайти. macOS відновить їх, але фонове індексування фото може тимчасово навантажити Mac. За замовчуванням вимкнено.",
+      "title": "Apple system service caches (Containers)",
+      "detail": "Caches of macOS services, for example photo analysis (mediaanalysisd) and connecting devices to Xcode. They take gigabytes. macOS rebuilds them, but background photo indexing may load your Mac for a while. Off by default.",
       "risk": "careful",
       "paths": ["~/Library/Containers/com.apple.*/Data/Library/Caches"],
       "granularity": "self",
@@ -416,8 +416,8 @@
     {
       "id": "system.mailDownloads",
       "group": "system",
-      "title": "Вкладення Mail, завантажені на диск",
-      "detail": "Копії вкладень, які Mail зберіг для перегляду. Для IMAP-пошти оригінали лишаються на сервері, а для POP можуть бути єдиною копією. Потрібен Full Disk Access.",
+      "title": "Mail attachments downloaded to disk",
+      "detail": "Copies of attachments that Mail saved for viewing. For IMAP mail the originals stay on the server, but for POP they may be the only copy. Requires Full Disk Access.",
       "risk": "careful",
       "paths": ["~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads"],
       "granularity": "children",
@@ -426,8 +426,8 @@
     {
       "id": "system.iosFirmware",
       "group": "system",
-      "title": "Файли оновлення iPhone/iPad (.ipsw)",
-      "detail": "Прошивки, які Finder завантажив при оновленні пристрою. Завантажаться знову, якщо потрібні.",
+      "title": "iPhone/iPad update files (.ipsw)",
+      "detail": "Firmware that Finder downloaded when updating a device. It is downloaded again if needed.",
       "risk": "careful",
       "paths": ["~/Library/iTunes/iPhone Software Updates", "~/Library/iTunes/iPad Software Updates"],
       "granularity": "children"
@@ -435,8 +435,8 @@
     {
       "id": "system.trash",
       "group": "system",
-      "title": "Кошик",
-      "detail": "Остаточно видаляє все, що лежить у Кошику. Потрібен Full Disk Access. Назад не повернеш.",
+      "title": "Trash",
+      "detail": "Permanently deletes everything in the Trash. Requires Full Disk Access. You cannot undo this.",
       "risk": "careful",
       "paths": ["~/.Trash"],
       "granularity": "children"

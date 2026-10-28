@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class SimulatorProviderTests: XCTestCase {
+final class SimulatorProviderTests: CleanerTestCase {
     private let devicesJSON = """
     {"devices":{
       "com.apple.CoreSimulator.SimRuntime.iOS-17-5":[
@@ -63,7 +63,7 @@ final class SimulatorProviderTests: XCTestCase {
     }
 }
 
-final class AppleScriptTests: XCTestCase {
+final class AppleScriptTests: CleanerTestCase {
     func testShellQuoteHandlesSingleQuotes() {
         XCTAssertEqual(AppleScript.shellQuote("plain"), "'plain'")
         XCTAssertEqual(AppleScript.shellQuote("it's"), "'it'\\''s'")
@@ -108,7 +108,7 @@ final class AppleScriptTests: XCTestCase {
     }
 }
 
-final class EngineActionTests: XCTestCase {
+final class EngineActionTests: CleanerTestCase {
     private let udid = "C950F996-4117-4F5A-8F0E-6B70A043F8A3"
 
     private func simRule() -> CleanupRule {

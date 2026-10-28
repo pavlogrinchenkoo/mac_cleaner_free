@@ -32,6 +32,8 @@ struct CleanerApp: App {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 960, minHeight: 620)
+                // Інша мова: перебудовуємо все вікно, щоб кожен L(...) обчислився заново.
+                .id(model.language)
         }
         .defaultSize(width: 1100, height: 720)
     }

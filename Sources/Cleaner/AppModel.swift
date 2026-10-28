@@ -30,6 +30,30 @@ final class AppModel {
     /// Єдиний екземпляр: його використовує і вікно, і безголовий режим самоперевірки.
     static let shared = AppModel()
 
+    /// Вибір мови інтерфейсу. `system` = мова Mac (або CLEANER_LANGUAGE); `en`/`uk` примусово.
+    enum LanguageChoice: String, CaseIterable, Identifiable {
+        case system, en, uk
+
+        var id: String { rawValue }
+
+        /// Назви мов показуємо їхніми ж мовами й не перекладаємо; «Системна» перекладається.
+        var title: String {
+            switch self {
+            case .system: L("System default")
+            case .en: Language.en.nativeName
+            case .uk: Language.uk.nativeName
+            }
+        }
+
+        var resolved: Language {
+            switch self {
+            case .system: Loc.initialLanguage()
+            case .en: .en
+            case .uk: .uk
+            }
+        }
+    }
+
     static let projectsGroupID = "projects"
     static let filesGroupID = "files"
     /// Ці групи видно завжди: у них є налаштування.
@@ -38,6 +62,7 @@ final class AppModel {
     private static let rootsKey = "projectRoots"
     private static let minSizeKey = "largeFileMinMB"
     private static let fdaDismissedKey = "fdaOnboardingDismissed"
+    private static let languageKey = "interfaceLanguage"
 
     private(set) var phase: Phase = .idle
     private(set) var groups: [CleanupGroup] = []
@@ -62,6 +87,9 @@ final class AppModel {
     private(set) var collectingDiagnostics = false
     private var diagnosticsStop = StopFlag()
     private(set) var largeFileMinMB = 100
+    /// Що вибрав користувач (за замовчуванням системна мова) і мова, яка з цього випливає.
+    private(set) var languageChoice: LanguageChoice = .system
+    private(set) var language: Language = .en
 
     /// Чи збирати карту зайнятого місця під час пробного запуску (довго; самоперевірка може її пропустити).
     var diagnosticsSurveyEnabled = true
@@ -86,6 +114,11 @@ final class AppModel {
     /// Правила вантажимо одразу, до першого кадру: тоді сайдбар не перебудовується й вибір групи не змінюється
     /// посеред відмальовування (це викликало попередження NSTableView про реентерабельність).
     init() {
+        // Мову застосовуємо першою: правила й тексти скану мають одразу вийти потрібною мовою.
+        let savedChoice = UserDefaults.standard.string(forKey: Self.languageKey).flatMap(LanguageChoice.init(rawValue:)) ?? .system
+        languageChoice = savedChoice
+        language = savedChoice.resolved
+        Loc.current = language
         let saved = UserDefaults.standard.integer(forKey: Self.minSizeKey)
         if Self.minSizeOptionsMB.contains(saved) { largeFileMinMB = saved }
         do {
@@ -94,7 +127,7 @@ final class AppModel {
             groups = set.groups
             selectedGroupID = set.groups.first?.id
         } catch {
-            loadError = "Не вдалося прочитати правила: \(error.localizedDescription)"
+            loadError = L("Could not read the rules: %@", error.localizedDescription)
         }
     }
 
@@ -143,9 +176,43 @@ final class AppModel {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         // Шлях передаємо окремим аргументом ($0), а не вставляємо в команду.
-        process.arguments = ["-c", "sleep 1; /usr/bin/open -n \"$0\"", Bundle.main.bundlePath]
+        process.arguments = ["-c", "/bin/sleep 1; /usr/bin/open -n \"$0\"", Bundle.main.bundlePath]
         try? process.run()
         NSApp.terminate(nil)
+    }
+
+    // MARK: - Мова
+
+    /// Перемикає мову: зберігає вибір, перечитує правила (назви груп і правил) і скануємо заново, бо частину
+    /// текстів (причини блокування, підписи елементів) створює саме скан. Вибір у списку скидається.
+    func setLanguageChoice(_ choice: LanguageChoice) {
+        guard phase != .cleaning, choice != languageChoice else { return }
+        languageChoice = choice
+        UserDefaults.standard.set(choice.rawValue, forKey: Self.languageKey)
+        let resolved = choice.resolved
+        // «Системна» могла дати ту саму мову, що й була: перемальовувати нічого.
+        guard resolved != language else { return }
+        language = resolved
+        Loc.current = resolved
+        reloadRules()
+        // До `start()` сканера ще немає: його створить `start()` з уже перечитаними правилами.
+        guard scanner != nil else { return }
+        rebuildScanner()
+        scan()
+    }
+
+    private func reloadRules() {
+        do {
+            let set = try RuleLoader.load()
+            ruleSet = set
+            groups = set.groups
+            loadError = nil
+            if selectedGroupID == nil || !set.groups.contains(where: { $0.id == selectedGroupID }) {
+                selectedGroupID = set.groups.first?.id
+            }
+        } catch {
+            loadError = L("Could not read the rules: %@", error.localizedDescription)
+        }
     }
 
     // MARK: - Папки проєктів
@@ -184,7 +251,7 @@ final class AppModel {
         var changed = false
         for url in urls.map(\.standardizedFileURL) {
             guard ArtifactGuard.isValidRoot(url, home: home) else {
-                rootsMessage = "«\(url.lastPathComponent)» не підходить: папка має бути в домашній, але не сама домашня і не Library."
+                rootsMessage = L("“%@” doesn't fit: the folder must be inside your home folder, but not the home folder itself or Library.", url.lastPathComponent)
                 continue
             }
             if !projectRoots.contains(url) {
@@ -487,7 +554,7 @@ final class AppModel {
                         roots: [URL(fileURLWithPath: "/Applications"), home.appendingPathComponent("Applications")])
                     input.survey = surveyEnabled ? DiskSurvey.run(
                         home: home,
-                        progress: { done, total in progressSink(done, total, "Збираю карту зайнятого місця") },
+                        progress: { done, total in progressSink(done, total, L("Collecting the disk usage map")) },
                         isCancelled: { stop.isSet }) : []
                     var updated = base
                     updated.logURL = DiagnosticReport.write(

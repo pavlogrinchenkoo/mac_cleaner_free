@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.1.0 — 2026-10-28
+
+- **English interface** alongside Ukrainian. Follows the Mac's language by default; switch with the globe button in the
+  sidebar (changing language rescans, because some texts are produced during the scan). Diagnostic reports, the
+  command-line tool and the built-in rule descriptions follow the chosen language too.
+- The bundle identifier is now `com.pavlogrinchenko.cleaner`. After updating from an earlier build, grant Full Disk Access
+  again (saved settings such as project folders start fresh).
+- Sizes are formatted by the app (`GB`/`ГБ`, decimal comma in Ukrainian) instead of the system locale.
+- MIT license; permission prompts from macOS (Desktop, Documents, Downloads) are localized.
+- **Security hardening** after an independent audit:
+  - protected-folder checks are case-insensitive and also applied to the path after resolving symlinks;
+  - the administrator-rights step re-validates every path right before running `rm` and only accepts
+    `/Library/Caches`, `/Library/Logs` and installed `.app` bundles;
+  - rules from your own `rules.json` are never auto-selected and cannot request administrator rights;
+  - the original of a duplicate is never removed in the same batch as its copy;
+  - system folders can no longer be mistaken for an app's leftovers; more package formats are skipped;
+  - logs and reports are private (`0700`/`0600`), clean logs use `~` paths, reports hide the user name and
+    never name iPhone backups or devices; clearer privacy warnings;
+  - hardened runtime; `cleanerctl clean --risk all` no longer includes personal files, backups or apps.
+- Tests: translations are checked for completeness and matching format specifiers; no Ukrainian text may leak into
+  English mode.
+
 ## 1.0.0 — 2026-10-28
 
 First stable release.

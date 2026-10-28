@@ -4,3 +4,13 @@ build/
 *.xcodeproj
 .DS_Store
 releases/
+*.dmg
+*.pem
+*.p12
+*.keychain-db
+*.log
+.env*
+.claude/
+xcuserdata/
+selftest-*.txt
+dryrun-*.txt

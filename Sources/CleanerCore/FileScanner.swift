@@ -61,20 +61,20 @@ public enum FileCategory: String, CaseIterable, Sendable {
         switch self {
         case .media:
             Self.makeRule(
-                "files.large.media", "Великі відео й аудіо",
-                "Відео, звук і проєкти монтажу. Перемістяться в Кошик, тож їх можна повернути.")
+                "files.large.media", L("Large video and audio"),
+                L("Video, audio and editing projects. They are moved to the Trash, so you can restore them."))
         case .archives:
             Self.makeRule(
-                "files.large.archives", "Великі архіви й образи дисків",
-                "Архіви (.zip, .rar…), образи дисків (.dmg, .iso). Часто залишаються після встановлення чи завантаження.")
+                "files.large.archives", L("Large archives and disk images"),
+                L("Archives (.zip, .rar…), disk images (.dmg, .iso). Often left over after an installation or a download."))
         case .design:
             Self.makeRule(
-                "files.large.design", "Великі дизайн- і фото-файли",
-                "Фотошоп, Sketch, Figma-файли, RAW, 3D. Це твоя робота, тож дивись уважно. Перемістяться в Кошик.")
+                "files.large.design", L("Large design and photo files"),
+                L("Photoshop, Sketch, Figma files, RAW, 3D. This is your work, so look carefully. They are moved to the Trash."))
         case .other:
             Self.makeRule(
-                "files.large.other", "Інші великі файли",
-                "Усе інше більше за заданий розмір. Перемістяться в Кошик.")
+                "files.large.other", L("Other large files"),
+                L("Everything else above the set size. They are moved to the Trash."))
         }
     }
 
@@ -107,18 +107,24 @@ public enum FileCategory: String, CaseIterable, Sendable {
 public enum FileScanner {
     public static let installerExtensions: Set<String> = ["dmg", "pkg", "mpkg", "xip", "iso"]
 
-    public static let installersRule = CleanupRule(
-        id: "files.installers", group: "files", title: "Інсталятори в Downloads і на столі",
-        detail: "Файли .dmg, .pkg, .iso, які зазвичай уже встановлено й більше не потрібно. Перемістяться в Кошик.",
-        risk: .careful, granularity: .selfItem, moveToTrash: true)
+    // Правила обчислюються, а не зберігаються: назви й описи залежать від мови.
+    public static var installersRule: CleanupRule {
+        CleanupRule(
+            id: "files.installers", group: "files", title: L("Installers in Downloads and on the Desktop"),
+            detail: L("Files such as .dmg, .pkg, .iso that are usually already installed and no longer needed. They are moved to the Trash."),
+            risk: .careful, granularity: .selfItem, moveToTrash: true)
+    }
 
-    public static let duplicatesRule = CleanupRule(
-        id: "files.duplicates", group: "files", title: "Дублікати файлів",
-        detail: "Точні копії (збігається весь вміст). У кожній групі один оригінал завжди лишається: його я не пропоную видаляти. На APFS клони файлів можуть не звільнити місця.",
-        risk: .careful, granularity: .selfItem, moveToTrash: true)
+    public static var duplicatesRule: CleanupRule {
+        CleanupRule(
+            id: "files.duplicates", group: "files", title: L("Duplicate files"),
+            detail: L("Exact copies (the whole content matches). In each group one original always stays and is never offered for deletion. On APFS, file clones may not free any space."),
+            risk: .careful, granularity: .selfItem, moveToTrash: true)
+    }
 
-    public static let allRules: [CleanupRule] =
+    public static var allRules: [CleanupRule] {
         [installersRule] + FileCategory.allCases.map(\.rule) + [duplicatesRule]
+    }
 
     // MARK: - Інвентаризація
 
@@ -178,15 +184,16 @@ public enum FileScanner {
         settings: FileScanSettings, home: URL,
         status: (String) -> Void = { _ in }, isCancelled: @Sendable () -> Bool = { false }
     ) -> [RuleResult] {
-        status("Переглядаю файли…")
+        status(L("Scanning files…"))
         let minimum = min(settings.minLargeBytes, settings.minDuplicateBytes, settings.minInstallerBytes)
         let files = inventory(settings: settings, minBytes: minimum, isCancelled: isCancelled)
         if isCancelled() { return [] }
 
-        status("Шукаю дублікати…")
+        status(L("Looking for duplicates…"))
         let groups = DuplicateFinder.find(files: files, minBytes: settings.minDuplicateBytes, isCancelled: isCancelled)
         if isCancelled() { return [] }
 
+        let installersRule = Self.installersRule, duplicatesRule = Self.duplicatesRule
         // Спершу дублікати: їхні зайві копії не показуємо ще й у великих файлах та інсталяторах.
         var duplicateEntries: [Entry] = []
         var duplicateIDs = Set<String>()
@@ -196,7 +203,7 @@ public enum FileScanner {
                 duplicateIDs.insert(file.url.path)
                 duplicateEntries.append(entry(
                     for: file, rule: duplicatesRule, home: home,
-                    subtitle: "Копія: \(abbreviate(keeper.url.path, home: home))",
+                    subtitle: L("Copy of %@", abbreviate(keeper.url.path, home: home)),
                     keeper: Keeper(path: keeper.url.path, size: keeper.logicalBytes, modified: keeper.modified)))
             }
         }
@@ -245,7 +252,7 @@ public enum FileScanner {
         let used = (file.allocatedBytes >= 20_000_000 ? lastUsedDate(of: file.url) : nil) ?? .distantPast
         let activity = max(used, Date(timeIntervalSince1970: file.modified))
         var entry = Entry(
-            ruleID: rule.id, url: file.url, subtitle: subtitle, ageLabel: "відкривали",
+            ruleID: rule.id, url: file.url, subtitle: subtitle, ageLabel: L("opened"),
             scope: .userFile, action: .trashPaths,
             presetUsage: DiskUsage(bytes: file.allocatedBytes, fileCount: 1, lastModified: activity, hadErrors: false),
             keeper: keeper)

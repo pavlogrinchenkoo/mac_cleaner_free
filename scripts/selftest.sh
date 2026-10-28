@@ -28,11 +28,11 @@ OUT="$(mktemp -t cleaner-selftest)"
 echo "▶ Запускаю Cleaner без вікна (пробний запуск; може тривати кілька хвилин)…"
 echo
 set +e
-build/Cleaner.app/Contents/MacOS/Cleaner --selftest 2>/dev/null | tee "$OUT"
+CLEANER_LANGUAGE=en build/Cleaner.app/Contents/MacOS/Cleaner --selftest 2>/dev/null | tee "$OUT"
 STATUS=${PIPESTATUS[0]}
 set -e
 
-LOG="$(grep '^ЛОГ: ' "$OUT" | head -1 | sed 's/^ЛОГ: //')"
+LOG="$(grep '^LOG: ' "$OUT" | head -1 | sed 's/^LOG: //')"
 rm -f "$OUT"
 
 if [ -n "${LOG:-}" ] && [ -f "$LOG" ]; then
@@ -40,13 +40,13 @@ if [ -n "${LOG:-}" ] && [ -f "$LOG" ]; then
     echo "════════ ПЕРЕГЛЯД ДІАГНОСТИЧНОГО ФАЙЛУ ════════"
     echo "Файл: $LOG"
     echo
-    sed -n '/^== ПІДСУМОК ==/,/^== ЗНАЙДЕНЕ/p' "$LOG" | sed '$d'
+    sed -n '/^== SUMMARY ==/,/^== FOUND/p' "$LOG" | sed '$d'
     echo
     echo "── Що вибрано автоматично (по правилах) ──"
     # Без обрізання рядків: у кирилиці багатобайтові символи не можна різати за байтами.
     { awk '
         /^[^ \[#=].* \[[a-zA-Z0-9_.]+\] — / { rule=$0 }
-        /^  \[✓ авто\] [0-9]/ { n[rule]++ }
+        /^  \[✓ auto\] [0-9]/ { n[rule]++ }
         END { for (r in n) printf "%4d  %s\n", n[r], r }' "$LOG" | LC_ALL=C sort -rn; } || true
     echo
     echo "── Заблоковано (зараз не можна вибрати), перші 12 ──"

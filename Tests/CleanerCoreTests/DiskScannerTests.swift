@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class DiskScannerTests: XCTestCase {
+final class DiskScannerTests: CleanerTestCase {
     private func scan(_ scanner: DiskScanner) async -> [String: RuleResult] {
         var results: [String: RuleResult] = [:]
         for await event in scanner.scan() {

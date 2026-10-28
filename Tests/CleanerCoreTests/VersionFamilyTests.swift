@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class VersionFamilyTests: XCTestCase {
+final class VersionFamilyTests: CleanerTestCase {
     func testParsesFamilyAndVersion() {
         XCTAssertEqual(VersionedName("AndroidStudio2025.3.4")?.family, "AndroidStudio")
         XCTAssertEqual(VersionedName("AndroidStudio2025.3.4")?.version, [2025, 3, 4])

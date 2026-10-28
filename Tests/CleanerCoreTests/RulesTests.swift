@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-final class RulesTests: XCTestCase {
+final class RulesTests: CleanerTestCase {
     func testBuiltinRulesLoad() throws {
         let set = try RuleLoader.builtin()
         XCTAssertFalse(set.rules.isEmpty)
@@ -100,6 +100,59 @@ final class RulesTests: XCTestCase {
         XCTAssertEqual(merged.rules.first { $0.id == first.id }?.title, "Перекрито")
         XCTAssertNotNil(merged.rules.first { $0.id == "mine.one" })
         XCTAssertTrue(merged.groups.contains { $0.id == "mine" })
+    }
+
+    // MARK: - Локалізація правил
+
+    private func ukrainianTranslations() throws -> RuleLoader.RuleTranslations {
+        let url = try XCTUnwrap(RuleLoader.resourceURL("rules.uk"), "немає rules.uk.json")
+        return try JSONDecoder().decode(RuleLoader.RuleTranslations.self, from: Data(contentsOf: url))
+    }
+
+    func testUkrainianTranslationCoversEveryBuiltinRuleAndGroup() throws {
+        let english = try RuleLoader.builtin(language: .en)
+        let uk = try ukrainianTranslations()
+
+        XCTAssertEqual(Set(uk.groups.keys), Set(english.groups.map(\.id)), "групи в rules.uk.json не збігаються з rules.json")
+        XCTAssertEqual(Set(uk.rules.keys), Set(english.rules.map(\.id)), "правила в rules.uk.json не збігаються з rules.json")
+        for (id, title) in uk.groups {
+            XCTAssertFalse(title.trimmingCharacters(in: .whitespaces).isEmpty, "група \(id): порожня назва")
+        }
+        for (id, texts) in uk.rules {
+            XCTAssertFalse((texts.title ?? "").trimmingCharacters(in: .whitespaces).isEmpty, "\(id): порожня назва")
+            XCTAssertFalse((texts.detail ?? "").trimmingCharacters(in: .whitespaces).isEmpty, "\(id): порожній опис")
+        }
+    }
+
+    func testEnglishRulesContainNoCyrillic() throws {
+        let set = try RuleLoader.builtin(language: .en)
+        func hasCyrillic(_ text: String) -> Bool {
+            text.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
+        }
+        for group in set.groups {
+            XCTAssertFalse(hasCyrillic(group.title), "група \(group.id): кирилиця в англійській назві")
+        }
+        for rule in set.rules {
+            XCTAssertFalse(hasCyrillic(rule.title), "\(rule.id): кирилиця в англійській назві")
+            XCTAssertFalse(hasCyrillic(rule.detail), "\(rule.id): кирилиця в англійському описі")
+        }
+    }
+
+    func testRuleLanguageSwitchesTitlesAndDetails() throws {
+        let english = try RuleLoader.builtin(language: .en)
+        let ukrainian = try RuleLoader.builtin(language: .uk)
+        XCTAssertEqual(english.rules.map(\.id), ukrainian.rules.map(\.id), "переклад не має міняти склад і порядок правил")
+        XCTAssertEqual(english.groups.first { $0.id == "apps" }?.title, "App caches")
+        XCTAssertEqual(ukrainian.groups.first { $0.id == "apps" }?.title, "Кеші застосунків")
+        XCTAssertEqual(english.rules.first { $0.id == "system.trash" }?.title, "Trash")
+        XCTAssertEqual(ukrainian.rules.first { $0.id == "system.trash" }?.title, "Кошик")
+        // Усе, окрім текстів, однакове.
+        for (en, uk) in zip(english.rules, ukrainian.rules) {
+            XCTAssertEqual(en.paths, uk.paths, en.id)
+            XCTAssertEqual(en.risk, uk.risk, en.id)
+        }
+        // load() без аргументів іде за поточною мовою (тести: українська).
+        XCTAssertEqual(try RuleLoader.builtin().groups.first { $0.id == "apps" }?.title, "Кеші застосунків")
     }
 
     func testGlobExpansionAndTilde() throws {

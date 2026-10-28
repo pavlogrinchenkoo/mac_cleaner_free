@@ -105,18 +105,37 @@ public enum AppleScript {
 /// Показує системний запит пароля адміна (як Onyx) і видаляє шляхи через `rm`.
 public struct AppleScriptPrivilegedRunner: PrivilegedRunner {
     private let runner: CommandRunner
+    private let applicationRoots: [String]
 
-    public init(runner: CommandRunner = ProcessRunner()) {
+    public init(runner: CommandRunner = ProcessRunner(), home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.runner = runner
+        applicationRoots = ["/Applications", home.standardizedFileURL.appendingPathComponent("Applications").path]
+    }
+
+    /// Остання перевірка прямо перед командою з правами адміна: рушій вже перевірив шляхи, але між тим і запитом
+    /// пароля може минути час, а `rm -rf` від root не повинен виконуватись на нічому, крім дозволеного.
+    /// Дозволено лише: вміст `/Library/Caches` і `/Library/Logs` (як у `SystemPathGuard`) та папки `.app`
+    /// безпосередньо в `/Applications` чи `~/Applications`. Шлях має бути абсолютним, без `..` і не symlink-ом у цих `.app`.
+    func isAllowed(_ path: String) -> Bool {
+        let url = URL(fileURLWithPath: path)
+        guard path.hasPrefix("/"), url.standardizedFileURL.path == path else { return false }
+        if (try? SystemPathGuard().validate(url)) != nil { return true }
+        var st = stat()
+        return url.pathExtension == "app"
+            && applicationRoots.contains(url.deletingLastPathComponent().path)
+            && lstat(path, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR
     }
 
     public func removeItems(_ paths: [String], prompt: String) -> PrivilegedOutcome {
         guard !paths.isEmpty else { return .finished }
+        if let refused = paths.first(where: { !isAllowed($0) }) {
+            return .failed(L("Refusing to delete with administrator rights: %@", refused))
+        }
         let script = AppleScript.doShellScript(command: AppleScript.removeCommand(for: paths), prompt: prompt, admin: true)
         let result = runner.run("/usr/bin/osascript", ["-e", script])
         if result.status == 0 { return .finished }
-        // Код -128 = користувач скасував діалог.
-        if result.error.contains("-128") || result.error.localizedCaseInsensitiveContains("User canceled") {
+        // Код -128 = користувач скасував діалог (osascript пише «User canceled. (-128)»).
+        if result.error.contains("(-128)") || result.error.localizedCaseInsensitiveContains("User canceled") {
             return .cancelled
         }
         return .failed(result.error.trimmingCharacters(in: .whitespacesAndNewlines))

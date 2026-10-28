@@ -93,10 +93,14 @@ public final class CleanEngine: Sendable {
         let snapshot = RunningSnapshot.current()
         let ruleBlocks = DiskScanner.ruleBlocks(for: rules, snapshot: snapshot)
 
+        let homePath = safety.home.home.path
         var logLines: [String] = []
         var items: [CleanItemResult] = []
         let formatter = ISO8601DateFormatter()
         logLines.append("# Cleaner \(dryRun ? "DRY-RUN" : "CLEAN") \(formatter.string(from: Date()))")
+
+        // Оригінали дублікатів, які видаляються в цій же пачці: їх не чіпаємо, інакше разом із копією зникне й остання версія.
+        let keeperPaths = Set(entries.compactMap { $0.keeper?.path })
 
         // Дії, що потребують пароля адміна, збираємо в одну пачку: один запит пароля на все.
         var adminCaches: [Entry] = []
@@ -109,15 +113,18 @@ public final class CleanEngine: Sendable {
             func finish(_ outcome: CleanItemResult.Outcome, _ bytes: Int64 = 0, note: String? = nil) {
                 let result = CleanItemResult(id: entry.id, path: entry.id, outcome: outcome, disposal: disposal, bytes: bytes, note: note)
                 items.append(result)
-                logLines.append(Self.logLine(for: result))
+                logLines.append(Self.logLine(for: result, home: homePath))
             }
 
             do {
                 try safety.validate(entry)
+                if keeperPaths.contains(entry.url.path) {
+                    throw CleanError.skipped(L("It is the original of a duplicate that is being removed"))
+                }
 
-                guard let rule = rulesByID[entry.ruleID] else { throw CleanError.skipped("Невідоме правило") }
+                guard let rule = rulesByID[entry.ruleID] else { throw CleanError.skipped(L("Unknown rule")) }
                 guard rule.requiresAdmin == (entry.scope == .system) else {
-                    throw CleanError.skipped("Тип елемента не збігається з правилом")
+                    throw CleanError.skipped(L("Item type does not match the rule"))
                 }
                 if let reason = DiskScanner.blockReason(for: entry, rule: rule, ruleBlock: ruleBlocks[rule.id], snapshot: snapshot) {
                     throw CleanError.skipped(reason)
@@ -125,7 +132,7 @@ public final class CleanEngine: Sendable {
                 switch entry.action {
                 case .removePaths, .trashPaths:
                     var st = stat()
-                    guard lstat(entry.url.path, &st) == 0 else { throw CleanError.skipped("Вже не існує") }
+                    guard lstat(entry.url.path, &st) == 0 else { throw CleanError.skipped(L("Already gone")) }
                 case .simctlDeleteDevice, .simctlDeleteRuntime:
                     break
                 }
@@ -148,14 +155,14 @@ public final class CleanEngine: Sendable {
         }
 
         if !adminCaches.isEmpty || !adminApps.isEmpty {
-            progress(entries.count, entries.count, "Чекаю на пароль адміна…")
+            progress(entries.count, entries.count, L("Waiting for the administrator password…"))
             let paths = adminCaches.flatMap { [$0.url] + $0.companions }.map(\.path) + adminApps.map(\.url.path)
-            let outcome = privileged.removeItems(paths, prompt: "Cleaner видаляє системні файли й програми. Введи пароль адміна.")
+            let outcome = privileged.removeItems(paths, prompt: L("Cleaner deletes system files and apps. Enter your administrator password."))
 
             for entry in adminCaches {
                 let result = adminResult(for: entry, outcome: outcome)
                 items.append(result)
-                logLines.append(Self.logLine(for: result))
+                logLines.append(Self.logLine(for: result, home: homePath))
             }
             for entry in adminApps {
                 var result = adminResult(for: entry, outcome: outcome)
@@ -170,18 +177,18 @@ public final class CleanEngine: Sendable {
                     if !failed.isEmpty {
                         result = CleanItemResult(
                             id: result.id, path: result.path, outcome: result.outcome, disposal: .delete, bytes: result.bytes,
-                            note: "Не вдалося перемістити залишки: \(failed.joined(separator: ", "))")
+                            note: L("Could not move the leftovers to the Trash: %@", failed.joined(separator: ", ")))
                     }
                 }
                 items.append(result)
-                logLines.append(Self.logLine(for: result))
+                logLines.append(Self.logLine(for: result, home: homePath))
             }
         }
         progress(entries.count, entries.count, "")
 
         var report = CleanReport(items: items, dryRun: dryRun, logURL: nil)
         if !dryRun {
-            logLines.append("# Звільнено: \(report.freedBytes) байт; у Кошику: \(report.trashedBytes) байт")
+            logLines.append(L("# Freed: %lld bytes; in Trash: %lld bytes", report.freedBytes, report.trashedBytes))
             report.logURL = writeLog(logLines)
         }
         return report
@@ -196,29 +203,29 @@ public final class CleanEngine: Sendable {
         }
         switch outcome {
         case .cancelled where !gone:
-            return result(.skipped("Пароль не введено"), 0)
+            return result(.skipped(L("Password not entered")), 0)
         case _ where gone:
             return result(.removed, entry.bytes)
         case .failed(let message):
             let remaining = DiskSize.measure(entry.url).bytes
-            return result(.failed(message.isEmpty ? "Не вдалося видалити" : message), max(0, entry.bytes - remaining))
+            return result(.failed(message.isEmpty ? L("Could not delete") : message), max(0, entry.bytes - remaining))
         default:
             // Команда відпрацювала, але елемент лишився: типово SIP або файл зайнятий.
             let remaining = DiskSize.measure(entry.url).bytes
-            return result(.failed("Система не дозволила видалити"), max(0, entry.bytes - remaining))
+            return result(.failed(L("The system did not allow deletion")), max(0, entry.bytes - remaining))
         }
     }
 
     /// Копію можна прибрати лише поки оригінал на місці й не змінився.
     private func verifyKeeper(_ entry: Entry, rule: CleanupRule) throws {
         guard let keeper = entry.keeper else {
-            if rule.id == FileScanner.duplicatesRule.id { throw CleanError.skipped("Для дубліката не вказано оригінал") }
+            if rule.id == FileScanner.duplicatesRule.id { throw CleanError.skipped(L("No original is set for the duplicate")) }
             return
         }
         var st = stat()
         guard keeper.path != entry.url.path, lstat(keeper.path, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG,
               Int64(st.st_size) == keeper.size, TimeInterval(st.st_mtimespec.tv_sec) == keeper.modified
-        else { throw CleanError.skipped("Оригінал змінився або зник: копію не чіпаю") }
+        else { throw CleanError.skipped(L("The original changed or is gone: leaving the copy alone")) }
     }
 
     /// Виконує дію для елемента, що не потребує адміна.
@@ -247,7 +254,7 @@ public final class CleanEngine: Sendable {
                 guard lstat(url.path, &st) == 0 else { continue }
                 do { try trasher.trash(url) } catch { failed.append(url.lastPathComponent) }
             }
-            finish(.trashed, before, failed.isEmpty ? nil : "Не вдалося перемістити залишки: \(failed.joined(separator: ", "))")
+            finish(.trashed, before, failed.isEmpty ? nil : L("Could not move the leftovers to the Trash: %@", failed.joined(separator: ", ")))
         case .simctlDeleteDevice(let udid):
             report(runner.run(SimulatorProvider.xcrun, ["simctl", "delete", udid]), before: before, finish: finish)
         case .simctlDeleteRuntime(let id):
@@ -260,7 +267,7 @@ public final class CleanEngine: Sendable {
             finish(.removed, before, nil)
         } else {
             let message = (result.error.isEmpty ? result.output : result.error).trimmingCharacters(in: .whitespacesAndNewlines)
-            finish(.failed(message.isEmpty ? "simctl завершився з кодом \(result.status)" : message), 0, nil)
+            finish(.failed(message.isEmpty ? L("simctl exited with code %ld", Int(result.status)) : message), 0, nil)
         }
     }
 
@@ -297,14 +304,15 @@ public final class CleanEngine: Sendable {
         }
     }
 
-    private static func logLine(for result: CleanItemResult) -> String {
+    private static func logLine(for result: CleanItemResult, home: String) -> String {
+        let path = result.path.hasPrefix(home + "/") ? "~" + result.path.dropFirst(home.count) : result.path
         let note = result.note.map { " [\($0)]" } ?? ""
         switch result.outcome {
-        case .removed: return "REMOVED \(result.bytes) \(result.path)\(note)"
-        case .trashed: return "TRASHED \(result.bytes) \(result.path)\(note)"
-        case .dryRun: return "WOULD-\(result.disposal == .trash ? "TRASH" : "REMOVE") \(result.bytes) \(result.path)"
-        case .skipped(let reason): return "SKIPPED (\(reason)) \(result.path)"
-        case .failed(let message): return "FAILED (\(message)) freed=\(result.bytes) \(result.path)"
+        case .removed: return "REMOVED \(result.bytes) \(path)\(note)"
+        case .trashed: return "TRASHED \(result.bytes) \(path)\(note)"
+        case .dryRun: return "WOULD-\(result.disposal == .trash ? "TRASH" : "REMOVE") \(result.bytes) \(path)"
+        case .skipped(let reason): return "SKIPPED (\(reason)) \(path)"
+        case .failed(let message): return "FAILED (\(message)) freed=\(result.bytes) \(path)"
         }
     }
 
@@ -313,8 +321,7 @@ public final class CleanEngine: Sendable {
         stamp.dateFormat = "yyyyMMdd-HHmmss"
         let url = logDirectory.appendingPathComponent("clean-\(stamp.string(from: Date())).log")
         do {
-            try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
-            try (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+            try PrivateStorage.write(lines.joined(separator: "\n") + "\n", to: url)
             return url
         } catch {
             return nil

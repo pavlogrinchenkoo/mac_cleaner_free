@@ -2,10 +2,12 @@ import Foundation
 
 /// Резервні копії iPhone/iPad, які Finder зберігає в `~/Library/Application Support/MobileSync/Backup`.
 public enum BackupProvider {
-    public static let rule = CleanupRule(
-        id: "backup.ios", group: "files", title: "Резервні копії iPhone та iPad",
-        detail: "Копії, які Finder зробив з телефону чи планшета, часто по 20–50 ГБ. Перемістяться в Кошик. Якщо це єдина копія пристрою, краще не видаляти. Потрібен Full Disk Access.",
-        risk: .careful, granularity: .children, moveToTrash: true, bulkSelectable: false)
+    public static var rule: CleanupRule {
+        CleanupRule(
+            id: "backup.ios", group: "files", title: L("iPhone and iPad backups"),
+            detail: L("Copies Finder made from a phone or tablet, often 20–50 GB each. They are moved to the Trash. If this is the only copy of the device, better not to delete it. Full Disk Access is required."),
+            risk: .careful, granularity: .children, moveToTrash: true, bulkSelectable: false)
+    }
 
     public static func discover(home: URL) -> RuleResult {
         let root = BackupGuard(home: home).backupRoot
@@ -17,7 +19,7 @@ public enum BackupProvider {
             let denied = FullDiskAccess.isDenied(error)
             return RuleResult(
                 rule: rule, entries: [],
-                accessError: denied ? "Немає доступу до резервних копій iPhone. Потрібен Full Disk Access." : nil)
+                accessError: denied ? L("No access to iPhone backups. Full Disk Access is required.") : nil)
         }
 
         let guardian = BackupGuard(home: home)
@@ -27,19 +29,19 @@ public enum BackupProvider {
             let info = readPlist(url.appendingPathComponent("Info.plist"))
             let manifest = readPlist(url.appendingPathComponent("Manifest.plist"))
 
-            let device = (info?["Device Name"] as? String) ?? "Невідомий пристрій"
+            let device = (info?["Device Name"] as? String) ?? L("Unknown device")
             var details: [String] = []
             if let product = info?["Product Name"] as? String {
                 details.append(product)
             } else if let type = info?["Product Type"] as? String {
                 details.append(type)
             }
-            if let version = info?["Product Version"] as? String { details.append("версія \(version)") }
-            if (manifest?["IsEncrypted"] as? Bool) == true { details.append("зашифрована") }
+            if let version = info?["Product Version"] as? String { details.append(L("version %@", version)) }
+            if (manifest?["IsEncrypted"] as? Bool) == true { details.append(L("encrypted")) }
 
             return Entry(
                 ruleID: rule.id, url: url, name: device,
-                subtitle: details.joined(separator: " · "), ageLabel: "копія від",
+                subtitle: details.joined(separator: " · "), ageLabel: L("backup from"),
                 scope: .backup, action: .trashPaths,
                 activityDate: info?["Last Backup Date"] as? Date)
         }

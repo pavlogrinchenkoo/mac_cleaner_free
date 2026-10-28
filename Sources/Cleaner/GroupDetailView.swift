@@ -32,11 +32,11 @@ struct GroupDetailView: View {
                     let isProjects = groupID == AppModel.projectsGroupID
                     let isFiles = groupID == AppModel.filesGroupID
                     ContentUnavailableView(
-                        model.phase == .scanning ? "Шукаю…" : (isProjects ? "Артефактів не знайшов" : (isFiles ? "Нічого великого не знайшов" : "Тут чисто")),
+                        model.phase == .scanning ? L("Searching…") : (isProjects ? L("No artifacts found") : (isFiles ? L("No large files found") : L("All clean here"))),
                         systemImage: model.phase == .scanning ? "magnifyingglass" : (isProjects ? "folder" : "checkmark.circle"),
                         description: Text(model.phase == .scanning ? (model.statusText ?? "") : (isProjects
-                            ? "Додай папку з проєктами вище, і я знайду в ній node_modules, build, Pods…"
-                            : (isFiles ? "Спробуй зменшити поріг розміру вище." : "У цій групі немає чого чистити.")))
+                            ? L("Add a projects folder above and I'll look for node_modules, build, Pods… in it.")
+                            : (isFiles ? L("Try lowering the size threshold above.") : L("There is nothing to clean in this group."))))
                     )
                     .frame(maxWidth: .infinity, minHeight: 200)
                 }
@@ -68,7 +68,7 @@ private struct RuleSection: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 TriStateBox(state: state, enabled: canBulk) { model.toggle(result) }
-                    .help(rule.bulkSelectable ? "Вибрати все в цьому правилі" : "Це твої файли: вибирай кожен окремо")
+                    .help(rule.bulkSelectable ? L("Select everything in this rule") : L("These are your files: select each one separately"))
                 Button {
                     withAnimation(.snappy(duration: 0.2)) { expanded.toggle() }
                 } label: {
@@ -76,15 +76,15 @@ private struct RuleSection: View {
                         Text(rule.title).font(.headline)
                         RiskBadge(risk: rule.risk)
                         if rule.requiresAdmin {
-                            Label("потрібен пароль", systemImage: "key.fill")
+                            Label(L("password required"), systemImage: "key.fill")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         if rule.moveToTrash {
-                            Label("у Кошик", systemImage: "trash")
+                            Label(L("to Trash"), systemImage: "trash")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .help("Можна повернути з Кошика. Місце звільниться після його очищення.")
+                                .help(L("Can be restored from the Trash. Space is freed after you empty it."))
                         }
                         if model.isMeasuring(result) {
                             ProgressView().controlSize(.small)
@@ -109,14 +109,14 @@ private struct RuleSection: View {
                 .padding(.leading, 30)
 
             if !rule.bulkSelectable {
-                Label("Вибирай по одному: «вибрати все» тут вимкнено.", systemImage: "hand.raised")
+                Label(L("Select one by one: “select all” is disabled here."), systemImage: "hand.raised")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 30)
             }
 
             if let days = rule.autoSelectOlderThanDays {
-                Label("За замовчуванням вибрано те, де нічого не змінювалось \(days)+ днів. Решту обираєш сам.",
+                Label(L("By default, items untouched for %ld+ days are selected. You choose the rest.", days),
                       systemImage: "clock.arrow.circlepath")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -135,7 +135,7 @@ private struct RuleSection: View {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout)
                         .foregroundStyle(.orange)
-                    Button("Налаштування") { model.openFullDiskAccessSettings() }
+                    Button(L("Settings")) { model.openFullDiskAccessSettings() }
                         .controlSize(.small)
                 }
                 .padding(.leading, 30)
@@ -152,7 +152,7 @@ private struct RuleSection: View {
                     }
                     if entries.count > shown.count {
                         let rest = entries.dropFirst(shown.count)
-                        Button("Показати ще \(Format.itemCount(rest.count)) (\(Format.bytes(rest.reduce(0) { $0 + $1.bytes })))") {
+                        Button(L("Show more: %@ (%@)", Format.itemCount(rest.count), Format.bytes(rest.reduce(0) { $0 + $1.bytes }))) {
                             showAll = true
                         }
                         .buttonStyle(.link)
@@ -179,7 +179,7 @@ private struct EntryRow: View {
         var parts: [String] = []
         if let subtitle = entry.subtitle { parts.append(subtitle) }
         if let age = Format.age(entry.measurement?.lastModified) {
-            parts.append("\(entry.ageLabel ?? "змінено") \(age)")
+            parts.append("\(entry.ageLabel ?? L("modified")) \(age)")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -224,8 +224,8 @@ private struct EntryRow: View {
         }
         .padding(.vertical, 6)
         .contextMenu {
-            Button("Показати у Finder") { model.revealInFinder(entry) }
-            Button("Скопіювати шлях") {
+            Button(L("Show in Finder")) { model.revealInFinder(entry) }
+            Button(L("Copy path")) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(entry.url.path, forType: .string)
             }
@@ -240,14 +240,14 @@ private struct ProjectRootsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Папки з проєктами", systemImage: "folder.badge.gearshape").font(.headline)
+                Label(L("Project folders"), systemImage: "folder.badge.gearshape").font(.headline)
                 Spacer()
-                Button("Додати папку…", action: pickFolders)
+                Button(L("Add folder…"), action: pickFolders)
                     .disabled(model.phase == .cleaning)
             }
 
             if model.projectRoots.isEmpty {
-                Text("Додай папку, де лежать твої проєкти (наприклад ~/Developer). Я шукатиму в ній відновлювані теки й нічого більше не чіпатиму.")
+                Text(L("Add the folder where your projects live (for example ~/Developer). I'll look in it for rebuildable folders and won't touch anything else."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -263,7 +263,7 @@ private struct ProjectRootsCard: View {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Більше не шукати в цій папці")
+                    .help(L("Stop searching in this folder"))
                 }
             }
 
@@ -273,7 +273,7 @@ private struct ProjectRootsCard: View {
                     .foregroundStyle(.orange)
             }
 
-            Text("Видаляю лише теки node_modules, build, Pods та подібні, і лише там, де поруч є файли проєкту (package.json, Podfile, pubspec.yaml…). Код ніколи не чіпаю.")
+            Text(L("I only delete folders like node_modules, build, Pods, and only where project files sit next to them (package.json, Podfile, pubspec.yaml…). I never touch your code."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -291,8 +291,8 @@ private struct ProjectRootsCard: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = true
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-        panel.prompt = "Додати"
-        panel.message = "Виберіть папки, де лежать ваші проєкти"
+        panel.prompt = L("Add")
+        panel.message = L("Choose the folders where your projects live")
         if panel.runModal() == .OK { model.addProjectRoots(panel.urls) }
     }
 }
@@ -303,14 +303,14 @@ private struct FileSettingsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Пошук файлів", systemImage: "magnifyingglass").font(.headline)
+                Label(L("File search"), systemImage: "magnifyingglass").font(.headline)
                 Spacer()
-                Picker("Великі файли від", selection: Binding(
+                Picker(L("Large files from"), selection: Binding(
                     get: { model.largeFileMinMB },
                     set: { model.setLargeFileMinMB($0) }
                 )) {
                     ForEach(AppModel.minSizeOptionsMB, id: \.self) { mb in
-                        Text(mb >= 1000 ? "1 ГБ" : "\(mb) МБ").tag(mb)
+                        Text(Loc.bytes(Int64(mb) * 1_000_000)).tag(mb)
                     }
                 }
                 .pickerStyle(.menu)
@@ -318,17 +318,17 @@ private struct FileSettingsCard: View {
                 .disabled(model.phase == .cleaning)
             }
 
-            Text("Шукаю у Downloads, Desktop, Documents, Movies, Music, Pictures. Приховане, програми, бібліотеки (Photos, Final Cut), git-репозиторії та папки проєктів не чіпаю.")
+            Text(L("I search Downloads, Desktop, Documents, Movies, Music and Pictures. I don't touch hidden files, apps, libraries (Photos, Final Cut), git repositories or project folders."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            Label("Усе тут переміщується в Кошик і ніколи не вибирається саме: обираєш ти. У дублікатів один оригінал завжди лишається.",
+            Label(L("Everything here is moved to the Trash and is never selected automatically: you choose. For duplicates, one original always stays."),
                   systemImage: "hand.raised")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
             if !model.hasFullDiskAccess {
-                Label("Без Full Disk Access macOS може приховати від мене частину Downloads, Desktop і Documents.",
+                Label(L("Without Full Disk Access macOS may hide part of Downloads, Desktop and Documents from me."),
                       systemImage: "lock.shield")
                     .font(.callout)
                     .foregroundStyle(.orange)
