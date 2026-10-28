@@ -1,207 +1,132 @@
-# Cleaner
+# Cleaner — a free, careful disk cleaner for macOS
 
-Свій чистильник маку: сканує відомі кеші й тимчасові файли, показує їх групами з розмірами,
-ти вибираєш, що видалити, а він видаляє й показує підсумок.
+Cleaner finds caches, logs, leftovers, build folders and big forgotten files that are safe to remove,
+shows them in groups with sizes, and lets **you** decide what goes. It is free and open source: an alternative to
+paid cleaners when you want to see exactly what is about to be deleted.
 
-## Запуск
+- Scan → review → clean. Nothing is deleted until you press the button and confirm.
+- A **dry run** mode shows exactly what would happen and deletes nothing.
+- Personal files are never selected for you, and are moved to the Trash (recoverable), not erased.
+- Built for designers and developers alike: Adobe, Figma, Affinity, Pixelmator, Xcode, Android, `node_modules`, and more.
 
-```bash
-scripts/build-app.sh               # збере build/Cleaner.app
-open build/Cleaner.app
-scripts/build-app.sh --install     # те саме + копія в /Applications
-```
+> **Language:** the app interface is currently in **Ukrainian**. Button labels are given in this guide in
+> parentheses so you can find them. English localization is planned.
 
-Або без пакування: `swift run Cleaner`. Тести: `swift test`.
+## Download
 
-### Full Disk Access і пароль адміна
+1. Go to the [**latest release**](https://github.com/pavlogrinchenkoo/clean_my_mac_free/releases/latest).
+2. Download **`Cleaner-<version>.dmg`**.
 
-- **Full Disk Access** (для Кошика й захищених папок). macOS не дозволяє застосункам вмикати його самим, тож
-  при першому запуску Cleaner показує покрокову підказку: відкриває потрібну панель налаштувань, показує
-  `Cleaner.app` у Finder і має кнопку «Перезапустити» (дозвіл діє лише після перезапуску).
-  Підпис за замовчуванням ad-hoc, тому після **кожної перезбірки** macOS скидає дозвіл. Щоб цього не було, один раз запусти
-  `scripts/make-signing-identity.sh` (окремий ключ-зв'язок у `~/.cleaner-signing`, основний не чіпається): тоді
-  `build-app.sh` підписує стабільним сертифікатом. Стабільний шлях
-  (`--install` → `/Applications`) допомагає, але не гарантує. Без дозволу все решта працює.
-- **Пароль адміна** потрібен лише для системних папок (`/Library/Caches`, `/Library/Logs`). Такі пункти
-  завжди вимкнені за замовчуванням, а системний запит пароля з'являється тільки коли ти сам їх вибрав і
-  натиснув «Очистити». Один запит на все.
-- **Доступ до Documents.** macOS може один раз спитати дозвіл на папку Documents: там зазвичай лежать проєкти.
+Requires **macOS 14 (Sonoma) or newer**. Runs natively on Apple Silicon and Intel.
 
-## Швидка перевірка без кліків
+## Install and first launch
 
-```bash
-scripts/selftest.sh            # збере, запустить без вікна, зробить пробний запуск і покаже перегляд
-scripts/selftest.sh --open     # те саме + відкриє діагностичний файл у текстовому редакторі
-scripts/selftest.sh --no-build # без перезбирання
-```
+1. Open the DMG and drag **Cleaner** into **Applications**.
+2. Double-click Cleaner in Applications. macOS will say it cannot verify the developer. Click **Done**
+   (not "Move to Trash"). This happens because the app is not signed with a paid Apple Developer ID.
+3. Immediately open **System Settings → Privacy & Security** and scroll **all the way down** to the **Security**
+   section. You will see a line about Cleaner with a button **Open Anyway**. Click it and enter your password.
+   - The button appears only **after** you tried to open the app, and only for a few minutes. If it is not there,
+     double-click Cleaner again and go back to Settings.
+   - Alternative, in Terminal: `xattr -dr com.apple.quarantine /Applications/Cleaner.app`
+4. Cleaner will offer to guide you through **Full Disk Access** (see below). It is optional but recommended.
 
-Застосунок у режимі `Cleaner --selftest` проганяє справжню модель на реальних даних цього Mac і перевіряє
-свою поведінку (автовибір безпечний, групові чекбокси не вибирають особисте, ручний вибір видно в логу,
-нічого не видалено…). **Нічого не видаляє**: лише пробні запуски. Результат: `selftest-*.txt` у теці логів.
+You only need to do this once.
 
-## Діагностичний файл (пробний запуск)
+## Permissions
 
-Кожен **«Пробний запуск»** (перемикач унизу → «Перевірити») нічого не змінює, а зберігає
-`~/Library/Application Support/Cleaner/logs/dryrun-<дата>.txt` і пропонує «Поділитися…». У файлі:
-
-- версії (Cleaner, macOS, архітектура), Full Disk Access, вільне місце;
-- **підсумок, що розрізняє походження вибору**: скільки вибрано автоматично (`[✓ авто]`), скільки додав користувач
-  вручну (`[✓ ВРУЧНУ]`), скільки зняв (`[✗ ЗНЯТО ВРУЧНУ]`), скільки не вибрано, бо «лише вручну» (з причиною:
-  особисті файли, обережне правило, проєкт свіжий…), і скільки **заблоковано** з причинами
-  (програма запущена, Gradle-демон, остання версія IDE, «використовувався N дн. тому»…);
-- усе знайдене по групах (до 600 елементів у правилі): позначка, розмір, давність, шлях, а в заголовку правила
-  його політика автовибору;
-- що було б зроблено й що пропущено;
-- повний список встановлених програм з bundle ID;
-- **карта зайнятого місця**: найбільші елементи в Application Support, Caches, Containers, Group Containers,
-  Downloads, Documents тощо. Саме за нею дописують правила під програми конкретного користувача.
-
-Збір карти місця не зависає: на кожну теку відведено 20 с, на все 150 с; хмарні теки (`Mobile Documents`, `CloudStorage`)
-не міряються взагалі, бо читання iCloud Drive іде через службу синхронізації й може блокуватися надовго.
-У вікні є кнопка «Пропустити й зберегти те, що є»; недораховані теки у файлі позначені «≥».
-
-З терміналу те саме: `cleanerctl diagnose [--out файл]`.
-Файл містить назви файлів і програм, тож його варто переглянути перед відправкою.
-
-## Як передати другу
-
-```bash
-scripts/make-dmg.sh      # збере build/Cleaner.dmg (~2,5 МБ, Apple Silicon + Intel, macOS 14+)
-```
-
-Скинь `build/Cleaner.dmg` другу (месенджер, AirDrop, хмара); копія кожного випуску лежить у
-`releases/Cleaner-<версія>.dmg`. Усередині: `Cleaner.app`, ярлик на «Програми» й
-файл «Як відкрити.txt». Застосунок підписаний лише ad-hoc (без платного Apple Developer ID), тому macOS
-(Gatekeeper) блокує його, якщо файл прийшов з карантином (Telegram, AirDrop, браузер, пошта).
-Друг має двічі клікнути застосунок у «Програмах», натиснути «Готово», одразу відкрити
-**Системні налаштування → Конфіденційність і безпека**, прокрутити в самий низ і натиснути **«Все одно відкрити»**
-(пункт з'являється лише після спроби відкрити й лише на кілька хвилин),
-або в Терміналі: `xattr -dr com.apple.quarantine /Applications/Cleaner.app`.
-Передача флешкою чи мережевою папкою не додає карантин, і блокування немає.
-
-Щоб екрана блокування не було зовсім, потрібні сертифікат **Developer ID Application** (платна
-програма Apple Developer, $99/рік) і нотаризація (`notarytool`). Сертифікати `Apple Development` і
-`Apple Distribution` для цього не підходять. Скрипт нотаризації ще не написаний: він знадобиться, щойно
-з'явиться Developer ID.
-
-## Версії
-
-- **1.0.0** (2026-10-28): перший стабільний випуск. Групи кеші, дизайн (Adobe, Figma, Sketch…), великі й старі
-  файли, інсталятори, дублікати, резервні копії iPhone, деінсталятор із залишками, проєкти
-  (`node_modules`, `build`, `Pods`…), Xcode/симулятори, Android, інструменти розробника, IDE, системні папки
-  (з паролем адміна). Пробний запуск пише діагностичний лог. Перевірено вживу з Full Disk Access: автовибір,
-  пароль адміна, Кошик. 175 тестів.
-
-Друг отримує ті самі правила: що знайде в нього, те й покаже (немає Xcode чи Android Studio, цих груп не буде).
-
-## Іконка
-
-Малюється кодом: `swift scripts/make-icon.swift Assets` перегенерує `Assets/AppIcon.icns`.
-Змінити вигляд можна прямо в цьому скрипті (градієнт, символи, розташування).
-
-## Як це влаштовано
-
-| Шар | Де | Що робить |
+| Permission | Why | Required? |
 |---|---|---|
-| Правила | `Sources/CleanerCore/rules.json` | Що чистити: шляхи, ризик, умови блокування |
-| Сканер | `DiskScanner`, `DiskSize` | Знаходить елементи, паралельно міряє розмір (як `du`) |
-| Захист | `PathGuard` | Остання лінія оборони перед видаленням |
-| Видалення | `CleanEngine` | Перевіряє все ще раз, видаляє, пише лог |
-| UI | `Sources/Cleaner` | SwiftUI: групи, тумблери, підсумок |
-| CLI | `cleanerctl` | Те саме без UI: `scan`, `clean` |
+| **Full Disk Access** | To see the Trash, iPhone backups, Mail downloads and protected folders. macOS does not let apps enable it themselves, so Cleaner opens the right Settings pane and shows the app in Finder to drag in. It takes effect after a restart of the app (the "Перезапустити" button). | Optional. Everything else works without it. |
+| **Administrator password** | Only for system folders (`/Library/Caches`, `/Library/Logs`) and apps installed by an administrator. These items are **off by default**; the password prompt appears only if you select them and confirm. | Optional |
+| **Documents / Desktop / Downloads** | macOS may ask once, because the app lists big files, duplicates and installers there. | Optional |
 
-### Що вміє
+> Because the app is not signed with a paid certificate, macOS may reset Full Disk Access after you install an
+> update. Just grant it again.
 
-| Група | Що робить |
+## How to use
+
+1. Open Cleaner and wait for the scan to finish (the "Сканую…" label at the bottom left disappears; groups with nothing to clean are hidden).
+2. Click a group in the sidebar to see its items with sizes and age. Safe caches are pre-selected; everything
+   risky or personal is not.
+3. Switch on **Dry run** («Пробний запуск») at the bottom and press **Check** («Перевірити»). Nothing is deleted:
+   you get a report of what would be removed.
+4. Switch the dry run off, press **Clean** («Очистити…») and confirm. The summary shows what was freed and what
+   went to the Trash. Space from the Trash is released when you empty it.
+
+The checkbox next to a group only selects the **recommended** items. It can never select personal files,
+duplicates, iPhone backups, apps or the Trash with one click: those you tick one by one.
+
+## What it can clean
+
+| Group | Examples |
 |---|---|
-| Кеші застосунків | Кеші Electron-програм (Figma, Discord, Slack…), sandbox-програм, Safari, Chrome, решти. Усі кеші однієї програми зведено в один рядок. |
-| Дизайн і медіа | Adobe: Media Cache, Peak Files, кеші Photoshop/Lightroom/Camera Raw. |
-| Файли та копії | Великі файли за категоріями (відео, архіви, дизайн, інше), інсталятори в Downloads/Desktop, **дублікати**, резервні копії iPhone. |
-| Деінсталятор | Програми з /Applications разом із залишками в ~/Library. |
-| Проєкти | `node_modules`, `build`, `Pods`, `.dart_tool`… по проєктах. |
-| Xcode, Android, пакети, IDE | Для розробників (симулятори, runtimes, Gradle, npm, Homebrew…). |
-| Система | Логи, системні кеші (з паролем), кеші служб Apple, вкладення Mail, прошивки iPhone, Кошик. |
+| App caches | Electron apps (Figma, Discord, Slack…), sandboxed apps (Affinity, Pixelmator…), Safari, Chrome, Telegram media cache |
+| Design & media | Adobe Media Cache and Peak Files; Photoshop, Lightroom, Illustrator, Camera Raw caches; old Adobe versions (shown as a hint) |
+| Files & copies | Large and old files by category, installers in Downloads/Desktop, **duplicates**, iPhone backups |
+| Uninstaller | Apps from /Applications together with their leftovers in `~/Library` |
+| Projects | `node_modules`, `build`, `Pods`, `.dart_tool`… per project; only projects untouched for 30+ days are pre-selected |
+| Xcode & simulators | DerivedData, DeviceSupport, Archives, simulator runtimes and devices (off by default) |
+| Android & Gradle | Gradle caches and wrappers, emulators (AVD) and NDK versions (off by default) |
+| Package managers | npm, Yarn, CocoaPods, Swift Package Manager, Homebrew, pip and other build caches |
+| IDEs | Caches and settings of old JetBrains / Android Studio versions (the newest is always kept) |
+| System | App logs, system caches (password), Apple service caches, Mail downloads, iPhone firmware (`.ipsw`), Trash |
 
-Групи без даних не показуються: у дизайнера не буде Xcode, а в розробника Adobe.
+Groups that do not apply to your Mac are not shown: a designer will not see Xcode, a developer will not see Adobe.
 
-### Рівні ризику й вибір за замовчуванням
+## Safety
 
-- **Безпечно:** кеші, які програма відновить сама. Вибрано за замовчуванням.
-- **Обережно:** можна видалити, але є ціна. Вимкнено, обираєш сам.
-- **Особисті файли, дублікати, бекапи iPhone, програми:** **ніколи не вибираються самі** і переміщуються
-  **в Кошик** (можна повернути). Місце звільниться після очищення Кошика. Звіт показує окремо «Звільнено» і «У Кошику».
-- **Проєкти:** вибрано лише ті, де **30+ днів** немає змін коду, git-активності чи оновлень залежностей.
-- **Системні папки** потребують пароля й теж вимкнені за замовчуванням.
+Cleaner is conservative by design.
 
-**Масовий вибір обмежено.** Груповий чекбокс у сайдбарі вибирає лише *рекомендоване* (те саме, що вибирається
-за замовчуванням), тож одним кліком не вибрати ні особисті файли, ні програми, ні Кошик. У правил з особистими
-даними (великі файли, дизайн-файли, програми, бекапи iPhone) «вибрати все» вимкнено зовсім: кожен елемент
-вибирають окремо. Підтвердження окремо попереджає, якщо серед вибраного є особисте.
-Старі версії Adobe (Photoshop 2025 при встановленому 2026 тощо) лише показуються з порадою видаляти їх через
-Creative Cloud; кнопки видалення в них немає.
+- It only touches paths listed in its rules, never arbitrary ones, and re-checks every path right before acting.
+- It refuses your home folder, Documents, Desktop, Downloads, Mail, Messages, keychains, `.ssh`, iCloud Drive and
+  anything outside your home folder (except the two system cache/log folders above, with your password).
+- **Personal files, duplicates, iPhone backups and uninstalled apps go to the Trash**, are never pre-selected,
+  and a duplicate is only removed while its original is still in place: your last copy is never touched.
+- **Caches are deleted permanently.** They are things apps rebuild by themselves, which is why they are the
+  default selection. That is also why the dry run exists.
+- It skips caches of apps that are running right now (Xcode, Chrome, Figma, Android Studio, Gradle daemon,
+  simulators…).
+- Projects: only well-known folders (`node_modules`, `build`…) inside project folders you added yourself, and only
+  next to real project files (`package.json`, `Podfile`, `*.xcodeproj`…).
+- A symlink is removed itself, never the thing it points to.
+- Every real clean writes a log to `~/Library/Application Support/Cleaner/logs/`.
 
-### Що захищає від помилок
+**Use at your own risk and always start with a dry run.** The software is provided as is, without warranty.
 
-- Чистить **лише** шляхи з правил, ніколи довільні. Перед кожною дією безпеку перевіряють ще раз.
-- `PathGuard`: відмовляє для домашньої папки, `Documents`, `Desktop`, `Downloads`, пошти, повідомлень, ключів,
-  `.ssh`, iCloud Drive, бекапів iPhone, а також усього поза домашньою папкою.
-- `ArtifactGuard` (проєкти): єдине місце, де дозволено заходити в `Documents`. Видаляє лише теку з відомою
-  назвою (`node_modules`, `build`…), лише в папці проєктів, яку ти додав сам, і лише якщо поруч є файли проєкту
-  (`package.json`, `Podfile`, `pubspec.yaml`, `build.gradle`, `*.xcodeproj`…). Вкладені артефакти й
-  symlink-и за межі кореня відхиляє.
-- `UserFileGuard` (особисті файли): лише звичайні файли в Downloads/Desktop/Documents/Movies/Music/Pictures;
-  не чіпає приховане, пакети (`.app`, `.photoslibrary`, `.fcpbundle`…), git-репозиторії, `node_modules`, symlink-и.
-  Дублікат видаляється лише поки оригінал на місці й не змінився; єдину копію ніколи.
-- `BackupGuard`: лише прямі теки з UDID у `MobileSync/Backup`.
-- `ApplicationGuard` (деінсталятор): лише `.app` у /Applications чи ~/Applications, не Apple, не сам Cleaner;
-  залишок має точно належати програмі (за bundle ID, а не за схожою назвою) і лежати в дозволених теках Library.
-- `SystemPathGuard` (пароль): лише діти `/Library/Caches` і `/Library/Logs`. Правило з `requiresAdmin`
-  у файлі правил не може вказати на інше місце: охоронець відхилить.
-- Симулятори видаляє нативна `xcrun simctl delete` / `runtime delete`, а ідентифікатор має бути UUID.
-- Не чіпає застосунок, що зараз працює (Xcode, Chrome, Android Studio, Gradle daemon, емулятор, запущений симулятор).
-- Версії IDE: лишає найновішу версію кожного продукту **і** все, що змінювалось за 30 днів
-  (Android Studio stable і Preview ділять одну родину тек).
-- Symlink видаляється сам, а не те, на що він вказує.
-- Видалення назовсім (не в Кошик), тому перед ним є підтвердження й режим «Пробний запуск».
-- Кожне справжнє очищення пише лог у `~/Library/Application Support/Cleaner/logs/`.
+## Help improve the rules: send a diagnostic report
 
-### Свої правила
+Different Macs have different apps, and Cleaner's rules grow from real data. Every dry run saves a report to
+`~/Library/Application Support/Cleaner/logs/dryrun-<date>.txt` and offers **Share…** («Поділитися…»). The report
+contains: app and macOS versions, free space, everything found, what was selected automatically or by you, what was
+blocked and why, your installed apps, and a map of the biggest folders in `~/Library` and your user folders.
 
-Додай `~/Library/Application Support/Cleaner/rules.json` у тому ж форматі, що й вбудований.
-Правило з тим самим `id` перекриває вбудоване. Шляхи однаково проходять через `PathGuard`.
+It contains **file and app names from your Mac**, so please read it before sending. If you want to help, attach it
+to an [issue](https://github.com/pavlogrinchenkoo/clean_my_mac_free/issues).
 
-```json
-{
-  "groups": [],
-  "rules": [{
-    "id": "mine.flutter",
-    "group": "devtools",
-    "title": "Flutter pub cache",
-    "detail": "Пакунки Dart. Докачаються через `flutter pub get`.",
-    "risk": "safe",
-    "paths": ["~/.pub-cache"],
-    "granularity": "children"
-  }]
-}
+## Build from source
+
+Requires macOS 14+ and a Swift 6 toolchain (developed with Xcode 26).
+
+```bash
+swift test                       # run the tests
+scripts/build-app.sh             # build/Cleaner.app (universal)
+scripts/make-dmg.sh              # build/Cleaner.dmg and releases/Cleaner-<version>.dmg
+swift run cleanerctl scan        # command-line version: list what can be cleaned
+swift run cleanerctl clean       # dry run; add --yes to really clean the default selection
+swift run cleanerctl diagnose    # write the diagnostic report
+scripts/selftest.sh              # headless self-check on your Mac (dry run only, deletes nothing)
 ```
 
-Поля правила: `granularity` (`children` чи `self`), `keepNewestVersion`, `protectRecentDays`,
-`autoSelectOlderThanDays`, `excludeNames`, `includeNames`, `companions` (`{base}.ini`), `blockedByApps`
-(bundle ID), `blockedByProcesses` (шаблон для `pgrep -f`), `skipRunningAppCaches`, `catchAll`,
-`requiresAdmin`, `provider` (`simctl.devices`, `simctl.runtimes`).
+### Custom rules
 
-Папки проєктів налаштовуються в самому застосунку (група «Проєкти») або `cleanerctl --root <папка>`.
+Add `~/Library/Application Support/Cleaner/rules.json` in the same format as the built-in
+[`rules.json`](Sources/CleanerCore/rules.json). A rule with the same `id` overrides the built-in one. All paths still
+pass through the safety guards.
 
-## Що ще не зроблено
+A Ukrainian developer guide with architecture and design notes is in [README.uk.md](README.uk.md).
 
-- Локальні знімки Time Machine: macOS сама їх прибирає, коли бракує місця, розмір окремого знімка не виміряти,
-  а видалення потребує root.
-- Тимчасові файли Photoshop (`/var/folders`), прев'ю Lightroom (`.lrdata`): лежать поза домашньою
-  папкою чи в Pictures. Потрібна карта зайнятого місця з її Mac, щоб додати точні правила.
-- `brew cleanup` для старих версій формул.
-- Системні образи й платформи Android SDK (`system-images`, `platforms`): краще через SDK Manager.
-- Попередження в menu bar, коли мало місця.
-- Підпис Developer ID + нотаризація: без них Gatekeeper блокує застосунок з карантином (див. «Як передати другу»).
-- Стабільний підпис для розробки: `scripts/make-signing-identity.sh` створює сертифікат, але довіру до нього
-  треба виконати вручну (команду скрипт друкує в кінці); поки цього не зроблено, кожна перезбірка скидає
-  Full Disk Access.
+## Status
+
+Version 1.0.0. Known limitations: the interface is Ukrainian only; the app is not notarized (hence the first-launch
+steps above); local Time Machine snapshots and `brew cleanup` are not handled yet. See [CHANGELOG.md](CHANGELOG.md).

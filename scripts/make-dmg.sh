@@ -1,9 +1,17 @@
 #!/bin/bash
-# Збирає build/Cleaner.dmg, який можна передати другу.
+# Збирає build/Cleaner.dmg (і копію releases/Cleaner-<версія>.dmg), який можна передати другу.
+# Використання: scripts/make-dmg.sh [--no-build]
+#   --no-build  не перезбирати Cleaner.app, а запакувати наявний build/Cleaner.app
+#               (корисно, щоб ad-hoc збірка не скидала Full Disk Access, коли код не змінювався)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-scripts/build-app.sh release
+if [ "${1:-}" != "--no-build" ]; then
+    scripts/build-app.sh release
+elif [ ! -d build/Cleaner.app ]; then
+    echo "Немає build/Cleaner.app: запусти без --no-build" >&2
+    exit 1
+fi
 
 STAGE="build/dmg"
 rm -rf "$STAGE" build/Cleaner.dmg
@@ -11,32 +19,45 @@ mkdir -p "$STAGE"
 cp -R build/Cleaner.app "$STAGE/Cleaner.app"
 ln -s /Applications "$STAGE/Applications"
 
-cat > "$STAGE/Як відкрити.txt" <<'TXT'
-CLEANER: як встановити й відкрити
+# Інструкція англійською: DMG потрапляє до користувачів з GitHub Releases.
+cat > "$STAGE/How to open.txt" <<'TXT'
+CLEANER: HOW TO INSTALL AND OPEN
 
-1. Перетягни Cleaner у папку «Програми» (Applications).
-2. Двічі клікни Cleaner у «Програмах». macOS скаже, що не може перевірити розробника:
-   застосунок не підписаний платним сертифікатом Apple. Це нормально для власних програм.
-   Натисни «Готово» (НЕ «У смітник»).
-3. Одразу після цього відкрий Системні налаштування → Конфіденційність і безпека і
-   прокрути в САМИЙ НИЗ до розділу «Безпека»: там буде рядок про Cleaner з кнопкою
-   «Все одно відкрити». Натисни її й введи пароль.
-   Рядок з'являється тільки ПІСЛЯ спроби відкрити застосунок і лише на кілька хвилин:
-   якщо його немає, ще раз двічі клікни Cleaner у «Програмах» і зайди в налаштування.
-   (Або в Терміналі: xattr -dr com.apple.quarantine /Applications/Cleaner.app)
-4. Для Кошика, Завантажень і захищених папок дай Cleaner повний доступ до диска:
-   застосунок сам покаже, як це зробити.
+1. Drag Cleaner into the Applications folder.
 
-ЯК ПЕРЕСЛАТИ ДІАГНОСТИКУ (щоб налаштувати програму під твій Mac)
-1. Відкрий Cleaner і дочекайся, поки внизу зліва зникне «Сканую…».
-2. Увімкни перемикач «Пробний запуск» і натисни «Перевірити». Нічого не видаляється.
-3. Зачекай хвилину-дві: збирається звіт.
-4. У вікні натисни «Поділитися…» і надішли файл.
-   У файлі є назви файлів і програм з цього Mac: за потреби перегляньте його.
+2. Double-click Cleaner in Applications. macOS will say it cannot verify the
+   developer: the app is not signed with a paid Apple Developer ID. This is
+   expected for a free open-source app. Click "Done" (NOT "Move to Trash").
 
-ВАЖЛИВО: Cleaner видаляє файли. Особисті файли, дублікати, резервні копії iPhone
-і програми він не вибирає сам і переміщує в Кошик (їх можна повернути).
-Кеші видаляються назовсім. Спершу завжди роби «Пробний запуск».
+3. Right away, open System Settings -> Privacy & Security and scroll ALL THE WAY
+   DOWN to the "Security" section. You will see a line about Cleaner with a
+   button "Open Anyway". Click it and enter your password.
+   The line appears only AFTER you tried to open the app, and only for a few
+   minutes. If it is not there, double-click Cleaner again and go back to Settings.
+   (Alternative, in Terminal: xattr -dr com.apple.quarantine /Applications/Cleaner.app)
+   You only need to do this once.
+
+4. For the Trash, iPhone backups and other protected folders, give Cleaner Full
+   Disk Access. The app shows how to do it on first launch. It is optional:
+   everything else works without it. After an update macOS may ask again.
+
+NOTE: the app interface is currently in Ukrainian. English localization is planned.
+
+HOW TO SEND A DIAGNOSTIC REPORT (helps improve the rules for your apps)
+1. Open Cleaner and wait until "Сканую…" at the bottom left disappears.
+2. Switch on the "Пробний запуск" (dry run) toggle at the bottom and press
+   "Перевірити" (Check). Nothing is deleted.
+3. Wait a minute or two while the report is generated.
+4. Click "Поділитися…" (Share) and send the file, or attach it to an issue at
+   https://github.com/pavlogrinchenkoo/clean_my_mac_free/issues
+   The file contains file and app names from your Mac: please read it first.
+
+IMPORTANT: Cleaner deletes files. Personal files, duplicates, iPhone backups and
+apps are never selected automatically and are moved to the Trash (you can restore
+them). Caches are deleted permanently. Always do a dry run first.
+Use at your own risk; the software is provided as is, without warranty.
+
+Source code and updates: https://github.com/pavlogrinchenkoo/clean_my_mac_free
 TXT
 
 hdiutil create -volname "Cleaner" -srcfolder "$STAGE" -ov -format UDZO build/Cleaner.dmg >/dev/null
