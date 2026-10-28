@@ -1,8 +1,8 @@
 #!/bin/bash
-# Збирає build/Cleaner.app.
-# Використання: scripts/build-app.sh [debug|release] [--install]
-#   release    універсальний бінарник (Apple Silicon + Intel); debug лише для цього мака
-#   --install  додатково копіює застосунок у /Applications (стабільний шлях краще для Full Disk Access)
+# Builds build/Cleaner.app.
+# Usage: scripts/build-app.sh [debug|release] [--install]
+#   release    universal binary (Apple Silicon + Intel); debug is for this Mac only
+#   --install  also copy the app to /Applications (a stable path works better for Full Disk Access)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,10 +12,10 @@ for arg in "$@"; do
     case "$arg" in
         --install) INSTALL=1 ;;
         debug|release) CONFIG="$arg" ;;
-        *) echo "Невідомий аргумент: $arg" >&2; exit 2 ;;
+        *) echo "Unknown argument: $arg" >&2; exit 2 ;;
     esac
 done
-APP="${APP_OUT:-build/Cleaner.app}"   # APP_OUT: зібрати в інше місце, не чіпаючи build/Cleaner.app
+APP="${APP_OUT:-build/Cleaner.app}"   # APP_OUT: build elsewhere without touching build/Cleaner.app
 
 ARCH_FLAGS=()
 if [ "$CONFIG" = "release" ]; then
@@ -58,7 +58,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Тексти системних запитів macOS (доступ до Desktop/Documents/Downloads) за мовою системи.
+# Texts of the macOS permission prompts (access to Desktop/Documents/Downloads), per system language.
 mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/uk.lproj"
 cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
 "NSDesktopFolderUsageDescription" = "Cleaner lists big files, duplicates and installers on your Desktop so you can decide what to delete.";
@@ -71,28 +71,28 @@ cat > "$APP/Contents/Resources/uk.lproj/InfoPlist.strings" <<'STRINGS'
 "NSDownloadsFolderUsageDescription" = "Cleaner показує великі файли, дублікати й інсталятори в Завантаженнях, щоб ти вирішив, що видалити.";
 STRINGS
 
-# Підпис. Якщо створено локальний сертифікат (scripts/make-signing-identity.sh), підписуємо ним: вимога підпису
-# стабільна, тож macOS не скидає Full Disk Access після перезбірки. Інакше ad-hoc, і дозвіл доведеться видавати знову.
-# Hardened runtime (--options runtime): інакше будь-який процес цього користувача міг би підвантажити свій код у Cleaner
-# через DYLD_INSERT_LIBRARIES, а в Cleaner може бути Full Disk Access. Без App Sandbox: чистильнику потрібен доступ до ~/Library.
+# Signing. If a local certificate exists (scripts/make-signing-identity.sh), sign with it: the designated requirement
+# stays stable, so macOS does not reset Full Disk Access after a rebuild. Otherwise ad-hoc, and the permission has to be granted again.
+# Hardened runtime (--options runtime): otherwise any process of this user could inject its own code into Cleaner
+# via DYLD_INSERT_LIBRARIES, and Cleaner may hold Full Disk Access. No App Sandbox: a cleaner needs access to ~/Library.
 SIGN_KEYCHAIN="$HOME/.cleaner-signing/signing.keychain-db"
 SIGN_NAME="Cleaner Local Signing"
 if [ -f "$SIGN_KEYCHAIN" ] && security unlock-keychain -p "cleaner-local" "$SIGN_KEYCHAIN" 2>/dev/null \
    && security find-identity -v -p codesigning "$SIGN_KEYCHAIN" 2>/dev/null | grep -q "$SIGN_NAME"; then
     codesign --force --options runtime --sign "$SIGN_NAME" --keychain "$SIGN_KEYCHAIN" "$APP"
-    SIGN_NOTE="стабільний підпис: Full Disk Access переживе перезбірку"
+    SIGN_NOTE="stable signature: Full Disk Access survives a rebuild"
 elif [ -f "$SIGN_KEYCHAIN" ]; then
-    # Сертифікат створено, але система йому ще не довіряє: codesign відмовляється ним підписувати.
+    # The certificate exists, but the system does not trust it yet: codesign refuses to sign with it.
     codesign --force --options runtime --sign - "$APP"
-    SIGN_NOTE="ad-hoc підпис: сертифікат ще не довірений (див. кінець scripts/make-signing-identity.sh), Full Disk Access буде скинуто"
+    SIGN_NOTE="ad-hoc signature: certificate not trusted yet (see the end of scripts/make-signing-identity.sh), Full Disk Access will be reset"
 else
     codesign --force --options runtime --sign - "$APP"
-    SIGN_NOTE="ad-hoc підпис: macOS скине Full Disk Access після цієї збірки (див. scripts/make-signing-identity.sh)"
+    SIGN_NOTE="ad-hoc signature: macOS will reset Full Disk Access after this build (see scripts/make-signing-identity.sh)"
 fi
-echo "Готово: $APP ($(lipo -archs "$APP/Contents/MacOS/Cleaner")); $SIGN_NOTE"
+echo "Done: $APP ($(lipo -archs "$APP/Contents/MacOS/Cleaner")); $SIGN_NOTE"
 
 if [ "$INSTALL" = 1 ]; then
     rm -rf /Applications/Cleaner.app
     cp -R "$APP" /Applications/Cleaner.app
-    echo "Встановлено: /Applications/Cleaner.app"
+    echo "Installed: /Applications/Cleaner.app"
 fi

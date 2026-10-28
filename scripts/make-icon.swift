@@ -1,5 +1,5 @@
-// Генерує іконку застосунку: Assets/AppIcon.icns (+ AppIcon.png для перегляду).
-// Запуск: swift scripts/make-icon.swift Assets
+// Generates the app icon: Assets/AppIcon.icns (+ AppIcon.png for preview).
+// Run: swift scripts/make-icon.swift Assets
 import AppKit
 
 let canvas: CGFloat = 1024
@@ -17,11 +17,11 @@ func render(size: Int) -> NSBitmapImageRep {
     let cg = context.cgContext
     cg.scaleBy(x: scale, y: scale)
 
-    // Тіло іконки за сіткою macOS: 824 з відступом 100.
+    // Icon body on the macOS grid: 824 with a 100 margin.
     let body = NSRect(x: 100, y: 100, width: 824, height: 824)
     let path = NSBezierPath(roundedRect: body, xRadius: 186, yRadius: 186)
 
-    // Тінь.
+    // Shadow.
     NSGraphicsContext.saveGraphicsState()
     let shadow = NSShadow()
     shadow.shadowColor = NSColor.black.withAlphaComponent(0.32)
@@ -32,7 +32,7 @@ func render(size: Int) -> NSBitmapImageRep {
     path.fill()
     NSGraphicsContext.restoreGraphicsState()
 
-    // Градієнт: фіолетовий → синій → бірюзовий.
+    // Gradient: purple → blue → turquoise.
     NSGraphicsContext.saveGraphicsState()
     path.addClip()
     let gradient = NSGradient(colorsAndLocations:
@@ -41,18 +41,18 @@ func render(size: Int) -> NSBitmapImageRep {
         (NSColor(red: 0.08, green: 0.80, blue: 0.93, alpha: 1), 1.0))!
     gradient.draw(in: body, angle: -50)
 
-    // М'який відблиск зверху ліворуч.
+    // Soft highlight at the top left.
     let glow = NSGradient(colors: [NSColor.white.withAlphaComponent(0.30), NSColor.white.withAlphaComponent(0)])!
     glow.draw(fromCenter: NSPoint(x: 330, y: 850), radius: 0, toCenter: NSPoint(x: 330, y: 850), radius: 560, options: [])
 
-    // Тонка внутрішня рамка для об'єму.
+    // Thin inner rim for depth.
     NSColor.white.withAlphaComponent(0.20).setStroke()
     let rim = NSBezierPath(roundedRect: body.insetBy(dx: 2, dy: 2), xRadius: 184, yRadius: 184)
     rim.lineWidth = 4
     rim.stroke()
     NSGraphicsContext.restoreGraphicsState()
 
-    // Символ: іскри (чистота) на тлі «диска».
+    // Symbol: sparkles (cleanliness) over a "disk".
     func symbol(_ name: String, points: CGFloat, weight: NSFont.Weight) -> NSImage? {
         let config = NSImage.SymbolConfiguration(pointSize: points, weight: weight)
             .applying(NSImage.SymbolConfiguration(paletteColors: [.white]))
@@ -66,7 +66,7 @@ func render(size: Int) -> NSBitmapImageRep {
     glyphShadow.shadowOffset = NSSize(width: 0, height: -12)
     glyphShadow.set()
 
-    // Диск (напівпрозорий), щоб було зрозуміло, що це про місце.
+    // Disk (slightly translucent), so it is clear this is about storage space.
     if let drive = symbol("internaldrive.fill", points: 420, weight: .regular) {
         let w = drive.size.width, h = drive.size.height
         drive.draw(in: NSRect(x: 497 - w / 2, y: 405 - h / 2, width: w, height: h),
@@ -74,7 +74,7 @@ func render(size: Int) -> NSBitmapImageRep {
     }
     NSGraphicsContext.restoreGraphicsState()
 
-    // Іскри поверх, зміщені вгору праворуч.
+    // Sparkles on top, shifted to the upper right.
     NSGraphicsContext.saveGraphicsState()
     glyphShadow.set()
     if let sparkles = symbol("sparkles", points: 330, weight: .semibold) {
@@ -88,8 +88,8 @@ func render(size: Int) -> NSBitmapImageRep {
     return rep
 }
 
-/// Менші розміри робимо зменшенням майстра 1024 з високою якістю: так символи лишаються чіткими
-/// (SF Symbols розтеризуються на фіксованому розмірі й у зменшеному контексті виходять блоковими).
+/// Smaller sizes are made by downscaling the 1024 master with high quality: this keeps the symbols crisp
+/// (SF Symbols are rasterized at a fixed size and come out blocky in a downscaled context).
 func scaled(_ master: NSBitmapImageRep, to size: Int) -> NSBitmapImageRep {
     if size == master.pixelsWide { return master }
     let rep = NSBitmapImageRep(
@@ -113,7 +113,7 @@ let iconset = root.appendingPathComponent("AppIcon.iconset", isDirectory: true)
 try? FileManager.default.removeItem(at: iconset)
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-// Стандартний набір розмірів .iconset.
+// Standard set of .iconset sizes.
 let variants: [(String, Int)] = [
     ("icon_16x16", 16), ("icon_16x16@2x", 32), ("icon_32x32", 32), ("icon_32x32@2x", 64),
     ("icon_128x128", 128), ("icon_128x128@2x", 256), ("icon_256x256", 256), ("icon_256x256@2x", 512),
@@ -131,4 +131,4 @@ iconutil.arguments = ["-c", "icns", iconset.path, "-o", root.appendingPathCompon
 try iconutil.run()
 iconutil.waitUntilExit()
 try? FileManager.default.removeItem(at: iconset)
-print("Готово: \(root.appendingPathComponent("AppIcon.icns").path)")
+print("Done: \(root.appendingPathComponent("AppIcon.icns").path)")

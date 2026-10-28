@@ -1,20 +1,20 @@
 import Darwin
 import Foundation
 
-/// Встановлена програма й усе, що можна про неї дізнатися без запуску.
+/// An installed app and everything that can be learned about it without launching it.
 public struct InstalledApp: Sendable, Equatable {
     public let url: URL
     public let bundleID: String
     public let name: String
     public let version: String?
     public let lastUsed: Date?
-    /// `.app` належить root (Mac App Store, Microsoft тощо): видалення потребує пароля.
+    /// The `.app` is owned by root (Mac App Store, Microsoft, etc.): removal needs the administrator password.
     public let isRootOwned: Bool
-    /// Назви, за якими шукаємо залишки в Application Support/Caches/Logs.
+    /// Names used to look for leftovers in Application Support/Caches/Logs.
     public let names: [String]
 }
 
-/// Деінсталятор: програми з /Applications і ~/Applications разом із залишками в ~/Library.
+/// Uninstaller: apps from /Applications and ~/Applications together with their leftovers in ~/Library.
 public enum AppProvider {
     public static var rule: CleanupRule {
         CleanupRule(
@@ -30,7 +30,7 @@ public enum AppProvider {
             for name in names where name.hasSuffix(".app") {
                 let url = root.appendingPathComponent(name)
                 var st = stat()
-                // Символічні посилання (наприклад Safari з системного томa) пропускаємо.
+                // Symbolic links (for example Safari from the system volume) are skipped.
                 guard lstat(url.path, &st) == 0, (st.st_mode & S_IFMT) == S_IFDIR else { continue }
                 guard let info = readInfo(url), let id = info["CFBundleIdentifier"] as? String, !id.isEmpty,
                       !ApplicationGuard.isProtected(bundleID: id), id != ApplicationGuard.ownBundleID else { continue }
@@ -50,7 +50,8 @@ public enum AppProvider {
         return apps
     }
 
-    /// Залишки програми, які точно її: за bundle ID, а в Application Support/Caches/Logs ще й за точною назвою.
+    /// Leftovers that definitely belong to the app: by bundle ID, and in Application Support/Caches/Logs
+    /// also by exact name.
     public static func leftovers(for app: InstalledApp, home: URL) -> [URL] {
         let library = home.appendingPathComponent("Library")
         let id = app.bundleID
@@ -92,7 +93,7 @@ public enum AppProvider {
         let entries = installedApps(roots: roots).map { app -> Entry in
             let leftovers = leftovers(for: app, home: home)
             var details: [String] = []
-            // Дві програми з однаковою назвою (Telegram, Telegram 2) розрізняємо за іменем файлу.
+            // Two apps with the same name (Telegram, Telegram 2) are told apart by the file name.
             let fileName = app.url.deletingPathExtension().lastPathComponent
             if fileName != app.name { details.append("\(fileName).app") }
             if let version = app.version { details.append(L("version %@", version)) }
@@ -114,8 +115,8 @@ public enum AppProvider {
 }
 
 
-/// Старі версії Adobe: показуємо розмір і пораду, але нічого не видаляємо самі.
-/// Правильно прибирати їх через Creative Cloud: він чистить і службові файли та ліцензії.
+/// Old Adobe versions: we show the size and advice, but never delete anything ourselves.
+/// The right way to remove them is through Creative Cloud: it also cleans up helper files and licenses.
 public enum AdobeVersions {
     public static var rule: CleanupRule {
         CleanupRule(
@@ -170,8 +171,8 @@ public enum AdobeVersions {
 }
 
 
-/// Налаштування старих версій Illustrator у `~/Library/Preferences/Adobe Illustrator NN Settings`.
-/// Кожна версія лишає по 4–8 ГБ, а коли програму видалено, ці дані нікому не потрібні.
+/// Settings of old Illustrator versions in `~/Library/Preferences/Adobe Illustrator NN Settings`.
+/// Each version leaves 4–8 GB, and once the app is removed this data is not needed by anyone.
 public enum AdobeSettings {
     public static var rule: CleanupRule {
         CleanupRule(
@@ -180,7 +181,7 @@ public enum AdobeSettings {
             risk: .careful, granularity: .selfItem, blockedByApps: ["com.adobe.illustrator*"], moveToTrash: true)
     }
 
-    /// Старші мажорні версії Illustrator, які є на диску (у `/Applications/Adobe Illustrator 2025/…`).
+    /// Major versions of Illustrator that are installed (e.g. in `/Applications/Adobe Illustrator 2025/…`).
     public static func installedIllustratorMajors(roots: [URL]) -> Set<Int> {
         var majors = Set<Int>()
         func read(_ app: URL) {

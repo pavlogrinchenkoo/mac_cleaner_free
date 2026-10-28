@@ -44,21 +44,21 @@ public enum GuardError: Error, LocalizedError, Equatable {
     }
 }
 
-/// Остання лінія оборони перед видаленням. Навіть якщо правило помилкове, ці перевірки
-/// не дадуть зачепити домашню папку, документи, пошту чи ключі.
+/// The last line of defence before deletion. Even if a rule is wrong, these checks
+/// will not let it touch the home folder, documents, mail or keys.
 public struct PathGuard: Sendable {
     public let home: URL
 
-    /// Самі ці шляхи видаляти не можна (їхній вміст — можна, якщо правило так каже).
+    /// These paths themselves must not be deleted (their contents can be, if the rule says so).
     private let protectedExact: Set<String>
-    /// Ні ці шляхи, ні нічого всередині них чіпати не можна.
+    /// Neither these paths nor anything inside them may be touched.
     private let deniedTrees: [String]
-    /// Точкові винятки з заборон: повний відносний шлях має збігтися з одним із шаблонів (regex з якорями).
-    /// Дозволяють видалити саму теку, але не нічого всередині чи поруч.
+    /// Targeted exceptions to the denials: the full relative path must match one of the patterns (anchored regex).
+    /// They allow deleting the folder itself, but nothing inside it or next to it.
     private let allowedExceptions: [String]
 
-    /// Файлова система macOS за замовчуванням не розрізняє регістр (`~/documents` = `~/Documents`), тож усі
-    /// порівняння з переліками заборон ведемо в нормалізованому нижньому регістрі.
+    /// The macOS file system is case-insensitive by default (`~/documents` = `~/Documents`), so all
+    /// comparisons against the deny lists are done in normalized lowercase.
     static func fold(_ path: String) -> String {
         path.precomposedStringWithCanonicalMapping.lowercased()
     }
@@ -85,8 +85,8 @@ public struct PathGuard: Sendable {
         ]
     }
 
-    /// Перевірка шляху відносно домашньої папки проти переліків заборон (без урахування регістру).
-    /// Винятки (`allowedExceptions`) навмисно чутливі до регістру: інший регістр лишається забороненим.
+    /// Checks a path relative to the home folder against the deny lists (case-insensitive).
+    /// Exceptions (`allowedExceptions`) are deliberately case-sensitive: any other casing stays denied.
     private func checkPolicy(relative: String, path: String) throws {
         if allowedExceptions.contains(where: { relative.range(of: $0, options: .regularExpression) != nil }) { return }
         let folded = Self.fold(relative)
@@ -96,7 +96,7 @@ public struct PathGuard: Sendable {
         }
     }
 
-    /// Кидає помилку, якщо видаляти `url` не можна.
+    /// Throws an error if `url` must not be deleted.
     public func validate(_ url: URL) throws {
         let path = url.standardizedFileURL.path
         let homePath = home.path
@@ -111,15 +111,16 @@ public struct PathGuard: Sendable {
         guard components.count >= 2 else { throw GuardError.tooShallow(path) }
         try checkPolicy(relative: relative, path: path)
 
-        // Батьківська папка після розкриття symlink-ів теж має лишатися в домашній...
+        // The parent folder, after resolving symlinks, must also stay inside the home folder...
         let realHome = home.resolvingSymlinksInPath().path
         let realParent = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath().path
         let realPrefix = realHome.hasSuffix("/") ? realHome : realHome + "/"
         guard realParent == realHome || realParent.hasPrefix(realPrefix) else {
             throw GuardError.escapesHome(path)
         }
-        // ...і не вести у захищене місце: `Library/Caches/x -> ~/Documents/Work` не дає видалити `x/Cache`.
-        // Сам елемент може бути symlink-ом: видаляється саме посилання, тому його останню частину не розкриваємо.
+        // ...and must not lead into a protected place: `Library/Caches/x -> ~/Documents/Work` does not allow
+        // deleting `x/Cache`. The item itself may be a symlink: the link itself is deleted, so its last
+        // component is not resolved.
         let realRelative = (realParent == realHome ? "" : String(realParent.dropFirst(realPrefix.count)) + "/")
             + url.standardizedFileURL.lastPathComponent
         try checkPolicy(relative: realRelative, path: path)

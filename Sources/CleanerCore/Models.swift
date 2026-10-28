@@ -1,18 +1,18 @@
 import Foundation
 
-/// Наскільки безпечно видаляти.
+/// How safe it is to delete.
 public enum Risk: String, Codable, Sendable, CaseIterable {
-    /// Кеш, який програма відновить сама. Увімкнено за замовчуванням.
+    /// A cache the app rebuilds on its own. Enabled by default.
     case safe
-    /// Можна видалити, але є ціна (довге перекачування, втрата налаштувань). Вимкнено за замовчуванням.
+    /// Can be deleted, but at a cost (a long re-download, lost settings). Disabled by default.
     case careful
 }
 
-/// Група для бокової панелі (Xcode, Android, ...).
+/// A group for the sidebar (Xcode, Android, ...).
 public struct CleanupGroup: Codable, Sendable, Identifiable, Hashable {
     public let id: String
     public let title: String
-    /// Назва SF Symbol.
+    /// SF Symbol name.
     public let symbol: String
 
     public init(id: String, title: String, symbol: String) {
@@ -22,62 +22,63 @@ public struct CleanupGroup: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
-/// Декларативне правило очищення: де шукати і що робити з знайденим.
+/// A declarative cleanup rule: where to look and what to do with what it finds.
 public struct CleanupRule: Codable, Sendable, Identifiable, Hashable {
     public enum Granularity: String, Codable, Sendable {
-        /// Кожен збіг шляху — окремий елемент.
+        /// Each path match is a separate item.
         case selfItem = "self"
-        /// Кожен вміст збігу (діти) — окремий елемент.
+        /// Each child of a match is a separate item.
         case children
     }
 
     public let id: String
     public let group: String
     public internal(set) var title: String
-    /// Що це і що станеться після видалення.
+    /// What this is and what happens after it is deleted.
     public internal(set) var detail: String
     public let risk: Risk
-    /// Шляхи з `~` і `*`. Порожньо для правил із `provider`.
+    /// Paths with `~` and `*`. Empty for rules with a `provider`.
     public let paths: [String]
     public let granularity: Granularity
-    /// Лише елементи з версією в назві (AndroidStudio2025.3.4); найновішу версію кожної родини не чіпати.
+    /// Only items with a version in the name (AndroidStudio2025.3.4); leave the newest version of each family alone.
     public let keepNewestVersion: Bool
-    /// Не чіпати елементи, у яких щось змінювалось за останні N днів (їх, ймовірно, зараз використовують).
+    /// Leave alone items where anything changed in the last N days (they are probably in use right now).
     public let protectRecentDays: Int?
-    /// Вибирати за замовчуванням лише елементи, у яких нічого не змінювалось N днів і більше.
-    /// Без цього поля безпечні правила вибираються завжди, а обережні ніколи.
+    /// Select by default only items where nothing has changed for N days or more.
+    /// Without this field, safe rules are always selected and careful ones never are.
     public let autoSelectOlderThanDays: Int?
-    /// Glob-шаблони імен, які пропускати.
+    /// Glob patterns for names to skip.
     public let excludeNames: [String]
-    /// Якщо задано, беремо лише імена, що збігаються з одним із шаблонів.
+    /// If set, only names matching one of the patterns are taken.
     public let includeNames: [String]
-    /// Супутні файли, які видаляються разом з елементом, напр. `{base}.ini` для `Pixel.avd`.
+    /// Companion files deleted together with the item, e.g. `{base}.ini` for `Pixel.avd`.
     public let companions: [String]
-    /// Bundle ID застосунків; поки хоч один запущений, правило заблоковане.
+    /// App bundle IDs; the rule is blocked while at least one of them is running.
     public let blockedByApps: [String]
-    /// Шаблони для `pgrep -f`; поки є збіг, правило заблоковане.
+    /// Patterns for `pgrep -f`; the rule is blocked while any of them matches.
     public let blockedByProcesses: [String]
-    /// Блокувати елемент, якщо його ім'я збігається з bundle ID чи назвою запущеного застосунку.
+    /// Block an item if its name matches the bundle ID or name of a running app.
     public let skipRunningAppCaches: Bool
-    /// Правило «решта»: пропускає все, що вже покрито точнішими правилами.
+    /// A "catch-all" rule: skips everything already covered by more specific rules.
     public let catchAll: Bool
-    /// Видалення потребує прав адміна (запит пароля). Дозволено лише для короткого списку системних папок.
+    /// Deletion needs administrator rights (password prompt). Allowed only for a short list of system folders.
     public internal(set) var requiresAdmin: Bool
-    /// Елементи дає код, а не шляхи: `simctl.devices`, `simctl.runtimes`.
+    /// Items come from code rather than from paths: `simctl.devices`, `simctl.runtimes`.
     public let provider: String?
-    /// Файли переміщуються в Кошик (можна повернути), а не видаляються назовсім.
+    /// Files are moved to the Trash (recoverable) instead of being deleted permanently.
     public let moveToTrash: Bool
-    /// «Власник» елемента — перша тека після незмінної частини шляху (`Application Support/<Власник>/…`).
-    /// Потрібен, щоб не чіпати кеш запущеного застосунку.
+    /// The item's "owner" is the first folder after the fixed part of the path (`Application Support/<Owner>/…`).
+    /// Needed so the cache of a running app is left alone.
     public let ownerFromPrefix: Bool
-    /// Glob-шаблони власників, яких пропускати (`com.apple.*`). Діє разом з `ownerFromPrefix`.
+    /// Glob patterns for owners to skip (`com.apple.*`). Works together with `ownerFromPrefix`.
     public let excludeOwners: [String]
-    /// Чи можна одним чекбоксом правила вибрати все. Для особистих файлів (дизайн-файли, програми, бекапи)
-    /// ні: там кожен елемент вибирають окремо.
+    /// Whether a single rule checkbox can select everything. For personal files (design files, apps, backups)
+    /// it cannot: each item is selected individually there.
     public let bulkSelectable: Bool
-    /// Правило з файлу користувача (`~/Library/Application Support/Cleaner/rules.json`), а не вбудоване.
-    /// Не береться з JSON: його ставить лише `RuleLoader`. Такі правила ніколи не вибираються самі й не можуть
-    /// просити пароль адміна (файл правил — це довіра на слово, а охоронці лише забороняють відоме).
+    /// A rule from the user's file (`~/Library/Application Support/Cleaner/rules.json`), not a built-in one.
+    /// Not read from JSON: only `RuleLoader` sets it. Such rules are never selected automatically and cannot
+    /// ask for the administrator password (the rules file is trusted on its word, and the guards only forbid
+    /// what is known).
     public internal(set) var isCustom: Bool = false
 
     enum CodingKeys: String, CodingKey {
@@ -164,16 +165,16 @@ public struct RuleSet: Codable, Sendable {
     }
 }
 
-/// Результат вимірювання папки/файлу.
+/// The result of measuring a folder/file.
 public struct DiskUsage: Sendable, Hashable {
-    /// Розмір на диску (як у `du`), без подвійного рахунку hard link-ів.
+    /// Size on disk (as in `du`), without double-counting hard links.
     public var bytes: Int64
     public var fileCount: Int
-    /// Найпізніша дата зміни всередині: «коли цим востаннє користувались».
+    /// The latest modification date inside: "when this was last used".
     public var lastModified: Date?
-    /// Частину вмісту не вдалося прочитати (немає прав).
+    /// Part of the contents could not be read (no permission).
     public var hadErrors: Bool
-    /// Не встиг дорахувати за відведений час: `bytes` — нижня межа.
+    /// Did not finish counting within the allotted time: `bytes` is a lower bound.
     public var timedOut: Bool
 
     public init(bytes: Int64, fileCount: Int, lastModified: Date?, hadErrors: Bool, timedOut: Bool = false) {
@@ -187,27 +188,27 @@ public struct DiskUsage: Sendable, Hashable {
     public static let zero = DiskUsage(bytes: 0, fileCount: 0, lastModified: nil, hadErrors: false)
 }
 
-/// Де лежить елемент і яким правилам безпеки він підпорядковується.
+/// Where an item lives and which safety rules apply to it.
 public enum EntryScope: Sendable, Hashable {
-    /// Звичайні шляхи в домашній папці.
+    /// Ordinary paths in the home folder.
     case home
-    /// Артефакт проєкту (node_modules, build, Pods…) в одній з папок проєктів.
+    /// A project artifact (node_modules, build, Pods…) in one of the project folders.
     case project
-    /// Системна папка, видалення потребує пароля адміна.
+    /// A system folder; deletion needs the administrator password.
     case system
-    /// Особистий файл у Downloads/Desktop/Documents/Movies/Music/Pictures.
+    /// A personal file in Downloads/Desktop/Documents/Movies/Music/Pictures.
     case userFile
-    /// Резервна копія iPhone/iPad у `~/Library/Application Support/MobileSync/Backup`.
+    /// An iPhone/iPad backup in `~/Library/Application Support/MobileSync/Backup`.
     case backup
-    /// Застосунок із /Applications або ~/Applications разом із залишками.
+    /// An app from /Applications or ~/Applications together with its leftovers.
     case application
 }
 
-/// Що саме робимо з елементом.
+/// What exactly is done with the item.
 public enum EntryAction: Sendable, Hashable {
-    /// Видалити файли/папки назовсім.
+    /// Delete files/folders permanently.
     case removePaths
-    /// Перемістити в Кошик (можна повернути).
+    /// Move to the Trash (recoverable).
     case trashPaths
     /// `xcrun simctl delete <udid>`.
     case simctlDeleteDevice(udid: String)
@@ -215,7 +216,7 @@ public enum EntryAction: Sendable, Hashable {
     case simctlDeleteRuntime(id: String)
 }
 
-/// Оригінал, який лишається, коли видаляємо копію (дублікати).
+/// The original that stays when a copy is deleted (duplicates).
 public struct Keeper: Sendable, Hashable {
     public let path: String
     public let size: Int64
@@ -228,38 +229,38 @@ public struct Keeper: Sendable, Hashable {
     }
 }
 
-/// Один елемент, який можна позначити й видалити.
+/// A single item that can be marked and deleted.
 public struct Entry: Sendable, Identifiable, Hashable {
-    /// Унікальний ідентифікатор (зазвичай повний шлях).
+    /// Unique identifier (usually the full path).
     public let id: String
     public let ruleID: String
     public let url: URL
-    /// Назва для показу.
+    /// Display name.
     public var name: String
-    /// Другий рядок у списку: версія runtime, шлях проєкту тощо.
+    /// Second line in the list: runtime version, project path, etc.
     public var subtitle: String?
-    /// Слово перед датою: «змінено», «активність», «запускався».
+    /// The word before the date: "modified", "activity", "launched".
     public var ageLabel: String?
-    /// `nil`, поки не виміряно.
+    /// `nil` until measured.
     public var measurement: DiskUsage?
-    /// Постійна причина, чому елемент не можна видаляти (наприклад «остання версія»).
+    /// A permanent reason why the item cannot be deleted (for example "latest version").
     public var lockedReason: String?
     public var scope: EntryScope
     public var action: EntryAction
     public var companions: [URL]
-    /// Розмір відомий наперед (з `simctl`, інвентаризації файлів): міряти не треба.
+    /// Size is known in advance (from `simctl`, a file inventory): no need to measure it.
     public var presetUsage: DiskUsage?
-    /// Чий це кеш/застосунок (назва теки чи bundle ID), щоб не чіпати запущене.
+    /// Whose cache/app this is (folder name or bundle ID), so that running apps are left alone.
     public var ownerName: String?
-    /// Дата останнього використання, відома наперед (для програм).
+    /// Last-used date, known in advance (for apps).
     public var activityDate: Date?
-    /// Для дублікатів: оригінал, який має лишитися.
+    /// For duplicates: the original that must stay.
     public var keeper: Keeper?
-    /// Для програм: рядки (bundle ID, назва), за якими перевіряємо, що залишки справді їхні.
+    /// For apps: strings (bundle ID, name) used to check that the leftovers really belong to the app.
     public var ownerTokens: [String]
-    /// Для програм: `.app` належить root, видалення потребує пароля адміна.
+    /// For apps: the `.app` is owned by root; deletion needs the administrator password.
     public var needsAdmin: Bool
-    /// Лише показуємо (з розміром і порадою), нічого не робимо. Розмір міряємо, хоч елемент і заблокований.
+    /// Display only (with size and advice), nothing is done. The size is measured even though the item is blocked.
     public var informational: Bool
 
     public init(
@@ -292,11 +293,11 @@ public struct Entry: Sendable, Identifiable, Hashable {
     public var bytes: Int64 { measurement?.bytes ?? 0 }
 }
 
-/// Проміжний стан правила після пошуку елементів.
+/// Intermediate state of a rule after its items are found.
 public struct RuleResult: Sendable, Identifiable {
     public let rule: CleanupRule
     public var entries: [Entry]
-    /// Правило не вдалося прочитати (наприклад, потрібен Full Disk Access).
+    /// The rule could not be read (for example, Full Disk Access is needed).
     public var accessError: String?
 
     public var id: String { rule.id }
@@ -309,13 +310,13 @@ public struct RuleResult: Sendable, Identifiable {
 }
 
 public enum ScanEvent: Sendable {
-    /// Знайдено елементи за шляхами (ще без розмірів).
+    /// Items found by path (no sizes yet).
     case discovered([RuleResult])
-    /// Додатково знайдено повільнішим шляхом: симулятори, проєкти. Замінює правила з тими ж id.
+    /// Additionally found by a slower route: simulators, projects. Replaces rules with the same ids.
     case appended([RuleResult])
-    /// Виміряно один елемент.
+    /// One item was measured.
     case measured(id: String, DiskUsage)
-    /// Що зараз роблю («Шукаю дублікати…»); `nil`, коли закінчив.
+    /// What is being done now ("Searching for duplicates…"); `nil` when finished.
     case status(String?)
     case finished
 }

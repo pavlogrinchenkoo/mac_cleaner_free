@@ -19,14 +19,14 @@ public enum RuleLoader {
         var rules: [String: Texts] = [:]
     }
 
-    /// Свої правила можна додати без перекомпіляції сюди:
-    /// `~/Library/Application Support/Cleaner/rules.json` (той самий формат, що й вбудований).
+    /// Custom rules can be added here without recompiling:
+    /// `~/Library/Application Support/Cleaner/rules.json` (the same format as the built-in one).
     public static func userRulesURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         home.appendingPathComponent("Library/Application Support/Cleaner/rules.json")
     }
 
-    /// Ресурс `<name>.json`: у зібраному .app скрипт кладе його прямо в Contents/Resources,
-    /// а при `swift run`/тестах він лежить у SwiftPM-бандлі поруч із виконуваним файлом.
+    /// The resource `<name>.json`: in the built .app the script puts it straight into Contents/Resources,
+    /// while under `swift run`/tests it lives in the SwiftPM bundle next to the executable.
     static func resourceURL(_ name: String) -> URL? {
         if let url = Bundle.main.url(forResource: name, withExtension: "json") { return url }
         return Bundle.module.url(forResource: name, withExtension: "json")
@@ -40,7 +40,7 @@ public enum RuleLoader {
         try JSONDecoder().decode(RuleSet.self, from: data)
     }
 
-    /// Вбудовані правила (англійською) з перекладом назв і описів на `language`, якщо переклад є.
+    /// Built-in rules (in English) with titles and descriptions translated into `language`, if a translation exists.
     public static func builtin(language: Language = Loc.current) throws -> RuleSet {
         guard let url = builtinRulesURL() else { throw LoadError.builtinMissing }
         var set = try decode(Data(contentsOf: url))
@@ -62,9 +62,9 @@ public enum RuleLoader {
         return set
     }
 
-    /// Вбудовані правила + правила користувача (якщо файл є). Правило з тим самим `id` перекриває вбудоване.
-    /// Правила користувача лишаються такими, як написані: вони не перекладаються. Їх позначено `isCustom`:
-    /// вони не вибираються самі, а `requiresAdmin` з файлу ігнорується.
+    /// Built-in rules + user rules (if the file exists). A rule with the same `id` overrides the built-in one.
+    /// User rules stay as written: they are not translated. They are marked `isCustom`:
+    /// they are not selected automatically, and `requiresAdmin` from the file is ignored.
     public static func load(
         home: URL = FileManager.default.homeDirectoryForCurrentUser, language: Language = Loc.current
     ) throws -> RuleSet {
@@ -89,14 +89,14 @@ public enum RuleLoader {
 }
 
 public enum PathExpander {
-    /// `~` і `~/…` → шлях у домашній папці.
+    /// `~` and `~/…` → a path in the home folder.
     public static func expandTilde(_ pattern: String, home: URL) -> String {
         if pattern == "~" { return home.path }
         if pattern.hasPrefix("~/") { return home.path + "/" + pattern.dropFirst(2) }
         return pattern
     }
 
-    /// Розкриває `~`, `*` і `{a,b}` у шляху. Повертає лише ті шляхи, що існують (symlink-и не розкриваються).
+    /// Expands `~`, `*` and `{a,b}` in a path. Returns only paths that exist (symlinks are not resolved).
     public static func expand(_ pattern: String, home: URL) -> [URL] {
         let expanded = expandTilde(pattern, home: home)
 
@@ -106,20 +106,20 @@ public enum PathExpander {
 
         var matches = glob_t()
         defer { globfree(&matches) }
-        // GLOB_BRACE: підтримка `{Cache,Code Cache,GPUCache}`.
+        // GLOB_BRACE: support for `{Cache,Code Cache,GPUCache}`.
         guard glob(expanded, GLOB_BRACE, nil, &matches) == 0 else { return [] }
         return (0..<Int(matches.gl_pathc)).compactMap { index in
             matches.gl_pathv[index].map { URL(fileURLWithPath: String(cString: $0)) }
         }
     }
 
-    /// `lstat`, а не `fileExists`: битий symlink теж «існує» і його можна прибрати.
+    /// `lstat`, not `fileExists`: a broken symlink also "exists" and can be removed.
     private static func exists(_ path: String) -> Bool {
         var st = stat()
         return lstat(path, &st) == 0
     }
 
-    /// Збіг імені з glob-шаблоном (`com.apple.*`).
+    /// Matches a name against a glob pattern (`com.apple.*`).
     public static func matches(name: String, pattern: String) -> Bool {
         fnmatch(pattern, name, 0) == 0
     }

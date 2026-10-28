@@ -3,28 +3,28 @@ import Foundation
 
 public struct CleanItemResult: Sendable, Identifiable {
     public enum Outcome: Sendable {
-        /// Видалено повністю.
+        /// Removed completely.
         case removed
-        /// Переміщено в Кошик: місце звільниться, коли Кошик очистять.
+        /// Moved to the Trash: the space is freed once the Trash is emptied.
         case trashed
-        /// Пробний запуск: нічого не змінено.
+        /// Dry run: nothing was changed.
         case dryRun
-        /// Пропущено з причиною (зник, заблоковано, не пройшов перевірку, скасовано).
+        /// Skipped with a reason (gone, blocked, failed validation, cancelled).
         case skipped(String)
-        /// Помилка; `bytes` — скільки встигло звільнитись до неї.
+        /// Failure; `bytes` is how much had been freed before it.
         case failed(String)
     }
 
-    /// Що було б/було зроблено: видалення назовсім чи Кошик.
+    /// What would be / was done: permanent deletion or the Trash.
     public enum Disposal: Sendable { case delete, trash }
 
     public let id: String
     public let path: String
     public let outcome: Outcome
     public let disposal: Disposal
-    /// Скільки місця торкнулось (для `dryRun` — скільки було б).
+    /// How much space was affected (for `dryRun`: how much would be).
     public let bytes: Int64
-    /// Попередження, що не змінює результату (наприклад, залишок не вдалося перемістити).
+    /// A warning that does not change the outcome (for example, a leftover could not be moved).
     public let note: String?
 
     public init(id: String, path: String, outcome: Outcome, disposal: Disposal = .delete, bytes: Int64, note: String? = nil) {
@@ -42,11 +42,11 @@ public struct CleanReport: Sendable {
     public var dryRun: Bool
     public var logURL: URL?
 
-    /// Місце, яке звільнено (або було б) видаленням назовсім.
+    /// Space that was (or would be) freed by permanent deletion.
     public var freedBytes: Int64 {
         items.filter { $0.disposal == .delete }.reduce(0) { $0 + $1.bytes }
     }
-    /// Те, що переміщено (або було б) в Кошик: місце звільниться після його очищення.
+    /// What was (or would be) moved to the Trash: the space is freed once it is emptied.
     public var trashedBytes: Int64 {
         items.filter { $0.disposal == .trash }.reduce(0) { $0 + $1.bytes }
     }
@@ -58,7 +58,7 @@ public struct CleanReport: Sendable {
     }
 }
 
-/// Видаляє вибрані елементи. Перед кожною дією заново перевіряє безпеку.
+/// Deletes the selected items. Re-checks safety before every action.
 public final class CleanEngine: Sendable {
     private let safety: SafetyPolicy
     private let runner: CommandRunner
@@ -81,7 +81,7 @@ public final class CleanEngine: Sendable {
             ?? safety.home.home.appendingPathComponent("Library/Application Support/Cleaner/logs")
     }
 
-    /// Синхронна, довга: викликай з фонового потоку/Task.
+    /// Synchronous and long-running: call it from a background thread/Task.
     public func clean(
         entries: [Entry],
         rules: [CleanupRule],
@@ -89,7 +89,7 @@ public final class CleanEngine: Sendable {
         progress: @Sendable (_ done: Int, _ total: Int, _ current: String) -> Void = { _, _, _ in }
     ) -> CleanReport {
         let rulesByID = Dictionary(uniqueKeysWithValues: rules.map { ($0.id, $0) })
-        // Знімок стану береться заново саме зараз, а не під час сканування.
+        // The snapshot of the running state is taken afresh right now, not during the scan.
         let snapshot = RunningSnapshot.current()
         let ruleBlocks = DiskScanner.ruleBlocks(for: rules, snapshot: snapshot)
 
@@ -99,10 +99,12 @@ public final class CleanEngine: Sendable {
         let formatter = ISO8601DateFormatter()
         logLines.append("# Cleaner \(dryRun ? "DRY-RUN" : "CLEAN") \(formatter.string(from: Date()))")
 
-        // Оригінали дублікатів, які видаляються в цій же пачці: їх не чіпаємо, інакше разом із копією зникне й остання версія.
+        // Originals of duplicates that are being removed in this same batch: we do not touch them,
+        // otherwise the last remaining version would vanish together with the copy.
         let keeperPaths = Set(entries.compactMap { $0.keeper?.path })
 
-        // Дії, що потребують пароля адміна, збираємо в одну пачку: один запит пароля на все.
+        // Actions that need the administrator password are collected into one batch:
+        // a single password prompt for all of them.
         var adminCaches: [Entry] = []
         var adminApps: [Entry] = []
 
@@ -166,7 +168,7 @@ public final class CleanEngine: Sendable {
             }
             for entry in adminApps {
                 var result = adminResult(for: entry, outcome: outcome)
-                // Залишки (в ~/Library) належать користувачеві: їх переносимо в Кошик, лише якщо програма зникла.
+                // Leftovers (in ~/Library) belong to the user: we move them to the Trash only if the app is gone.
                 if case .removed = result.outcome {
                     var failed: [String] = []
                     for url in entry.companions {
@@ -194,7 +196,7 @@ public final class CleanEngine: Sendable {
         return report
     }
 
-    /// Результат для елемента, видаленого пачкою з паролем: дивимось, чи він справді зник.
+    /// Result for an item deleted in the batch that needed the password: we check whether it is really gone.
     private func adminResult(for entry: Entry, outcome: PrivilegedOutcome) -> CleanItemResult {
         var st = stat()
         let gone = lstat(entry.url.path, &st) != 0
@@ -210,13 +212,13 @@ public final class CleanEngine: Sendable {
             let remaining = DiskSize.measure(entry.url).bytes
             return result(.failed(message.isEmpty ? L("Could not delete") : message), max(0, entry.bytes - remaining))
         default:
-            // Команда відпрацювала, але елемент лишився: типово SIP або файл зайнятий.
+            // The command ran, but the item is still there: typically SIP, or the file is in use.
             let remaining = DiskSize.measure(entry.url).bytes
             return result(.failed(L("The system did not allow deletion")), max(0, entry.bytes - remaining))
         }
     }
 
-    /// Копію можна прибрати лише поки оригінал на місці й не змінився.
+    /// A copy may be removed only while the original is in place and unchanged.
     private func verifyKeeper(_ entry: Entry, rule: CleanupRule) throws {
         guard let keeper = entry.keeper else {
             if rule.id == FileScanner.duplicatesRule.id { throw CleanError.skipped(L("No original is set for the duplicate")) }
@@ -228,7 +230,7 @@ public final class CleanEngine: Sendable {
         else { throw CleanError.skipped(L("The original changed or is gone: leaving the copy alone")) }
     }
 
-    /// Виконує дію для елемента, що не потребує адміна.
+    /// Performs the action for an item that does not need administrator rights.
     private func perform(_ entry: Entry, before: Int64, finish: (CleanItemResult.Outcome, Int64, String?) -> Void) {
         switch entry.action {
         case .removePaths:
@@ -236,13 +238,13 @@ public final class CleanEngine: Sendable {
                 for url in [entry.url] + entry.companions { try Self.remove(url) }
                 finish(.removed, before, nil)
             } catch {
-                // Могло видалитись частково: рахуємо, скільки реально звільнилось.
+                // It may have been deleted partially: count how much was actually freed.
                 let remaining = DiskSize.measure(entry.url).bytes
                 finish(.failed(error.localizedDescription), max(0, before - remaining), nil)
             }
         case .trashPaths:
             do {
-                // Спершу основне, потім залишки: якщо основне не вдалось, залишки лишаються на місці.
+                // The main item first, then the leftovers: if the main item fails, the leftovers stay in place.
                 try trasher.trash(entry.url)
             } catch {
                 finish(.failed(error.localizedDescription), 0, nil)
@@ -278,7 +280,7 @@ public final class CleanEngine: Sendable {
         }
     }
 
-    /// Якщо `url` — symlink, `removeItem` прибирає сам symlink, а не те, на що він вказує.
+    /// If `url` is a symlink, `removeItem` removes the symlink itself, not what it points to.
     private static func remove(_ url: URL) throws {
         let fm = FileManager.default
         var st = stat()
@@ -286,7 +288,8 @@ public final class CleanEngine: Sendable {
         do {
             try fm.removeItem(at: url)
         } catch {
-            // Типова причина: у дереві є папки без права запису (Gradle, Xcode). Додаємо право й пробуємо ще раз.
+            // Typical cause: the tree contains folders without write permission (Gradle, Xcode).
+            // Add the permission and retry.
             makeOwnerWritable(url)
             try fm.removeItem(at: url)
         }

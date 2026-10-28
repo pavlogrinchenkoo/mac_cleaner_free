@@ -1,28 +1,28 @@
 #!/bin/bash
-# Створює локальний сертифікат для підпису Cleaner в ОКРЕМОМУ ключ-зв'язку (~/.cleaner-signing).
+# Creates a local certificate for signing Cleaner in a SEPARATE keychain (~/.cleaner-signing).
 #
-# Навіщо: при ad-hoc підписі macOS скидає Full Disk Access після кожної перезбірки, бо підпис
-# прив'язаний до хешу збірки. Зі стабільним сертифікатом дозвіл зберігається між збірками.
+# Why: with an ad-hoc signature macOS resets Full Disk Access after every rebuild, because the signature
+# is tied to the build hash. With a stable certificate the permission persists across builds.
 #
-# Що робить (і що ні):
-#   • створює папку ~/.cleaner-signing з окремим ключ-зв'язком signing.keychain-db;
-#   • кладе туди самопідписаний сертифікат "Cleaner Local Signing" (діє 10 років);
-#   • НЕ чіпає твій основний ключ-зв'язок (login), НЕ змінює список ключ-зв'язків системи;
-#   • НЕ довіряє сертифікату в системі: він потрібен лише, щоб підпис був однаковий від збірки до збірки.
-# Прибрати все: rm -rf ~/.cleaner-signing
+# What it does (and does not):
+#   • creates the folder ~/.cleaner-signing with a separate keychain signing.keychain-db;
+#   • puts a self-signed certificate "Cleaner Local Signing" there (valid for 10 years);
+#   • does NOT touch your main keychain (login), does NOT change the system keychain search list;
+#   • does NOT trust the certificate system-wide: it is only needed so the signature is the same from build to build.
+# To remove everything: rm -rf ~/.cleaner-signing
 #
-# Запускати один раз. Повторний запуск нічого не ламає. build-app.sh сам використає цей
-# сертифікат, якщо він є, а якщо ні, підпише ad-hoc, як раніше.
+# Run it once. Running it again breaks nothing. build-app.sh uses this certificate
+# automatically if it exists, and otherwise signs ad-hoc, as before.
 set -euo pipefail
 
 DIR="$HOME/.cleaner-signing"
 KEYCHAIN="$DIR/signing.keychain-db"
 NAME="Cleaner Local Signing"
-PASS="cleaner-local"   # пароль лише від цього службового ключ-зв'язку
+PASS="cleaner-local"   # password for this auxiliary keychain only
 
 if [ -f "$KEYCHAIN" ] && security unlock-keychain -p "$PASS" "$KEYCHAIN" 2>/dev/null \
    && security find-certificate -c "$NAME" "$KEYCHAIN" >/dev/null 2>&1; then
-    echo "Сертифікат уже є: $KEYCHAIN"
+    echo "Certificate already exists: $KEYCHAIN"
     exit 0
 fi
 
@@ -37,26 +37,26 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 36
     -addext "keyUsage=critical,digitalSignature" \
     -addext "extendedKeyUsage=critical,codeSigning" 2>/dev/null
 
-# Старі алгоритми потрібні, щоб `security import` прочитав PKCS12, створений OpenSSL 3.
+# The legacy algorithms are needed so that `security import` can read a PKCS12 created by OpenSSL 3.
 openssl pkcs12 -export -inkey key.pem -in cert.pem -out identity.p12 -passout "pass:$PASS" \
     -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1
 
 security create-keychain -p "$PASS" "$KEYCHAIN"
-security set-keychain-settings "$KEYCHAIN"          # без автоблокування
+security set-keychain-settings "$KEYCHAIN"          # no auto-lock
 security unlock-keychain -p "$PASS" "$KEYCHAIN"
 security import identity.p12 -k "$KEYCHAIN" -P "$PASS" -T /usr/bin/codesign >/dev/null
-# Дозволяє codesign користуватися ключем без запиту пароля.
+# Lets codesign use the key without a password prompt.
 security set-key-partition-list -S apple-tool:,apple: -s -k "$PASS" "$KEYCHAIN" >/dev/null
 
 rm -f key.pem identity.p12
-echo "Готово: сертифікат «${NAME}» у ${KEYCHAIN}"
+echo "Done: certificate “${NAME}” in ${KEYCHAIN}"
 echo
-echo "ЩЕ ОДИН КРОК, який виконуєш ТИ (скрипт його не робить): довіра сертифікату для підпису коду."
-echo "Без неї codesign відмовляється підписувати («no identity found», статус NOT_TRUSTED)."
-echo "Команда змінює налаштування довіри ЛИШЕ для твого користувача й ЛИШЕ для призначення «підпис коду»,"
-echo "macOS покаже діалог із паролем:"
+echo "ONE MORE STEP, which YOU perform (the script does not do it): trust the certificate for code signing."
+echo "Without it codesign refuses to sign (“no identity found”, status NOT_TRUSTED)."
+echo "The command changes trust settings ONLY for your user and ONLY for the “code signing” purpose,"
+echo "macOS will show a password dialog:"
 echo
 echo "  security add-trusted-cert -r trustRoot -p codeSign -k \"$KEYCHAIN\" \"$DIR/cert.pem\""
 echo
-echo "Скасувати довіру: security remove-trusted-cert \"$DIR/cert.pem\"   (і rm -rf ~/.cleaner-signing)"
-echo "Потім: scripts/build-app.sh --install, і видай Full Disk Access востаннє."
+echo "To revoke trust: security remove-trusted-cert \"$DIR/cert.pem\"   (and rm -rf ~/.cleaner-signing)"
+echo "Then: scripts/build-app.sh --install, and grant Full Disk Access one last time."

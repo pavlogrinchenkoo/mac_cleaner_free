@@ -2,13 +2,13 @@ import AppKit
 import Darwin
 import Foundation
 
-/// Знімок запущених застосунків і процесів. Потрібен, щоб не чистити кеш того, що зараз працює.
+/// Snapshot of running apps and processes. Needed so we do not clean the cache of something that is running now.
 public struct RunningSnapshot: Sendable {
     public var bundleIDs: Set<String>
-    /// Локалізовані назви запущених застосунків (нижній регістр).
+    /// Localized names of running apps (lowercase).
     public var appNames: Set<String>
-    /// Лише «звичайні» застосунки (з вікнами й Dock), без фонових служб на кшталт `figma_agent`.
-    /// Для нечіткого збігу використовуємо тільки їх: фонова служба не означає, що запущена сама програма.
+    /// Only "regular" apps (with windows and a Dock icon), without background services such as `figma_agent`.
+    /// Only these are used for fuzzy matching: a background service does not mean the app itself is running.
     public var regularAppNames: Set<String>
 
     public init(bundleIDs: Set<String> = [], appNames: Set<String> = [], regularAppNames: Set<String>? = nil) {
@@ -31,21 +31,21 @@ public struct RunningSnapshot: Sendable {
         return RunningSnapshot(bundleIDs: ids, appNames: names, regularAppNames: regular)
     }
 
-    /// Чи можна вважати, що тека кешу `name` належить запущеному застосунку.
-    /// Помилятись тут безпечніше в бік «так»: зайве блокування лише змусить закрити застосунок.
+    /// Whether the cache folder `name` can be considered to belong to a running app.
+    /// It is safer to err on the side of "yes" here: an unnecessary block only forces the user to quit the app.
     public func ownsCache(named name: String) -> Bool {
         if bundleIDs.contains(name) { return true }
-        // Кеші бувають і з суфіксами: `com.google.Chrome.helper`, `com.spotify.client.something`.
+        // Caches can also have suffixes: `com.google.Chrome.helper`, `com.spotify.client.something`.
         if bundleIDs.contains(where: { name.hasPrefix($0 + ".") }) { return true }
         let lowered = name.lowercased()
         if appNames.contains(lowered) { return true }
-        // «Google» належить «Google Chrome», «Adobe» — «Adobe Photoshop 2025». Лише для звичайних застосунків:
-        // фонова служба (`figma_agent`) не означає, що запущено сам Figma.
+        // "Google" belongs to "Google Chrome", "Adobe" to "Adobe Photoshop 2025". Only for regular apps:
+        // a background service (`figma_agent`) does not mean Figma itself is running.
         return lowered.count >= 4 && regularAppNames.contains { $0.contains(lowered) }
     }
 
-    /// Чи запущений застосунок з bundle ID за шаблоном (`com.adobe.*`).
-    /// Порівняння без урахування регістру: bundle ID бувають `com.adobe.illustrator` і `com.adobe.Photoshop`.
+    /// Whether an app whose bundle ID matches the pattern (`com.adobe.*`) is running.
+    /// The comparison is case-insensitive: bundle IDs can be `com.adobe.illustrator` and `com.adobe.Photoshop`.
     public func isRunning(bundlePattern pattern: String) -> Bool {
         bundleIDs.contains { Self.matches(bundleID: $0, pattern: pattern) }
     }
@@ -56,7 +56,7 @@ public struct RunningSnapshot: Sendable {
 }
 
 public enum RunningProbe {
-    /// Причина, чому правило зараз не можна застосовувати, або `nil`.
+    /// The reason the rule cannot be applied right now, or `nil`.
     public static func blockReason(for rule: CleanupRule, snapshot: RunningSnapshot) -> String? {
         for pattern in rule.blockedByApps where snapshot.isRunning(bundlePattern: pattern) {
             let running = NSWorkspace.shared.runningApplications.first {

@@ -1,14 +1,15 @@
 import Darwin
 import Foundation
 
-/// Тип відновлюваної теки в проєкті. Кожну можна безпечно видалити, бо її перегенерує інструмент збірки.
+/// A kind of recoverable folder inside a project. Each can be deleted safely, because the build tool regenerates it.
 public struct ArtifactKind: Sendable {
     public let id: String
-    /// Назви тек, що належать до цього типу.
+    /// Names of folders that belong to this kind.
     public let names: [String]
-    /// Поруч з текою (в її батьківській) має лежати один із цих файлів (glob). Без цього тека не вважається артефактом.
+    /// One of these files (a glob) must be next to the folder (in its parent).
+    /// Without it the folder is not considered an artifact.
     public let markers: [String]
-    /// Усередині теки має бути один із цих файлів.
+    /// One of these files must be inside the folder.
     public let innerMarkers: [String]
     public let risk: Risk
     public let autoSelectOlderThanDays: Int?
@@ -60,7 +61,8 @@ public struct ArtifactKind: Sendable {
     public static func kind(forDirectoryNamed name: String) -> ArtifactKind? { byName[name] }
     public static func isArtifactName(_ name: String) -> Bool { byName[name] != nil }
 
-    /// Назва й опис залежать від мови, тому обчислюються при кожному зверненні (а не зберігаються в реєстрі).
+    /// The title and description depend on the language, so they are computed on every access
+    /// (not stored in the registry).
     public var title: String {
         switch id {
         case "project.gradle": L("Project Gradle cache (.gradle)")
@@ -91,7 +93,7 @@ public struct ArtifactKind: Sendable {
         }
     }
 
-    /// Синтетичне правило для інтерфейсу й рушія.
+    /// A synthetic rule for the UI and the engine.
     public var rule: CleanupRule {
         CleanupRule(
             id: id, group: "projects", title: title, detail: detail, risk: risk,
@@ -99,7 +101,7 @@ public struct ArtifactKind: Sendable {
         )
     }
 
-    /// Чи є поруч/всередині потрібні файли проєкту.
+    /// Whether the required project files are next to it / inside it.
     public func isSatisfied(artifact: URL) -> Bool {
         let parent = artifact.deletingLastPathComponent().path
         if !markers.isEmpty, !Self.anyEntry(in: parent, matching: markers) { return false }
@@ -114,12 +116,12 @@ public struct ArtifactKind: Sendable {
 }
 
 public enum ProjectScanner {
-    /// Глибше цього проєкти не шукаємо.
+    /// We do not look for projects deeper than this.
     public static let maxDepth = 8
-    /// Ці теки не містять проєктів, тож у них не заходимо.
+    /// These folders contain no projects, so we do not descend into them.
     private static let skipNames: Set<String> = [".git", "DerivedData", ".idea", ".vscode"]
 
-    /// Шукає артефакти в усіх (валідних) папках проєктів. Повертає по правилу на кожен знайдений тип.
+    /// Looks for artifacts in all (valid) project folders. Returns one rule per kind found.
     public static func discover(guard artifactGuard: ArtifactGuard) -> [RuleResult] {
         var byKind: [String: [Entry]] = [:]
         var seen = Set<String>()
@@ -146,7 +148,7 @@ public enum ProjectScanner {
         }
     }
 
-    /// Шлях проєкту відносно папки проєктів: `my-api/web-client`.
+    /// The project path relative to the projects folder: `my-api/web-client`.
     static func projectName(parent: URL, root: URL) -> String {
         let relative = parent.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -173,15 +175,15 @@ public enum ProjectScanner {
                 fts_set(stream, ent, FTS_SKIP)
             } else if ArtifactKind.isArtifactName(name) {
                 onArtifact(URL(fileURLWithPath: path))
-                // Усередині артефакту проєктів немає, тож не заходимо (node_modules величезні).
+                // There are no projects inside an artifact, so we do not descend (node_modules are huge).
                 fts_set(stream, ent, FTS_SKIP)
             }
         }
     }
 }
 
-/// Оцінює, коли проєктом востаннє користувались: за змінами коду, маніфестів і git.
-/// Повертає лише дату, ніколи не змінює нічого.
+/// Estimates when a project was last used: from changes to code, manifests and git.
+/// Only returns a date, never modifies anything.
 public enum ProjectActivity {
     private static let manifestNames = [
         "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
@@ -189,7 +191,7 @@ public enum ProjectActivity {
         "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
         "Cargo.toml", "Cargo.lock", "pom.xml", "Package.swift",
     ]
-    /// Скільки записів переглядаємо в проєкті максимум (великі монорепо не мають гальмувати скан).
+    /// How many entries we look through in a project at most (large monorepos must not slow down the scan).
     private static let sourceWalkLimit = 8000
 
     public static func newest(in project: URL, home: URL) -> Date? {
@@ -202,7 +204,7 @@ public enum ProjectActivity {
         consider(project.path)
         for name in manifestNames { consider(project.appendingPathComponent(name).path) }
 
-        // Найближчий git-репозиторій вгору по дереву: коміти, checkout, pull змінюють ці файли.
+        // The nearest git repository going up the tree: commits, checkouts and pulls change these files.
         var directory = project.standardizedFileURL
         for _ in 0..<8 {
             let git = directory.appendingPathComponent(".git")
@@ -236,7 +238,7 @@ public enum ProjectActivity {
             if info == FTS_D || info == FTS_F {
                 if info == FTS_D, ent.pointee.fts_level > 0 {
                     let name = (String(cString: ent.pointee.fts_path) as NSString).lastPathComponent
-                    // Артефакти й .git не є «роботою над проєктом».
+                    // Artifacts and .git are not "work on the project".
                     if ArtifactKind.isArtifactName(name) || name == ".git" {
                         fts_set(stream, ent, FTS_SKIP)
                         continue
@@ -249,7 +251,7 @@ public enum ProjectActivity {
     }
 }
 
-/// Папки з проєктами за замовчуванням: ті з поширених місць, що існують. Користувач може змінити список.
+/// Default project folders: those of the common locations that exist. The user can change the list.
 public enum ProjectRoots {
     public static let candidates = [
         "Developer", "Projects", "dev", "Code", "src", "Sites",

@@ -6,7 +6,7 @@ enum TriState {
     case off, mixed, on
 }
 
-/// Потокобезпечний прапорець «зупинити», який читає фонова діагностика.
+/// Thread-safe "stop" flag read by the background diagnostics.
 final class StopFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var value = false
@@ -27,16 +27,16 @@ final class AppModel {
         case idle, scanning, cleaning
     }
 
-    /// Єдиний екземпляр: його використовує і вікно, і безголовий режим самоперевірки.
+    /// The single instance: used by both the window and the headless self-test mode.
     static let shared = AppModel()
 
-    /// Вибір мови інтерфейсу. `system` = мова Mac (або CLEANER_LANGUAGE); `en`/`uk` примусово.
+    /// Interface language choice. `system` = the Mac's language (or CLEANER_LANGUAGE); `en`/`uk` force a language.
     enum LanguageChoice: String, CaseIterable, Identifiable {
         case system, en, uk
 
         var id: String { rawValue }
 
-        /// Назви мов показуємо їхніми ж мовами й не перекладаємо; «Системна» перекладається.
+        /// Language names are shown in their own languages and are not translated; "System default" is translated.
         var title: String {
             switch self {
             case .system: L("System default")
@@ -56,7 +56,7 @@ final class AppModel {
 
     static let projectsGroupID = "projects"
     static let filesGroupID = "files"
-    /// Ці групи видно завжди: у них є налаштування.
+    /// These groups are always visible: they have settings.
     static let alwaysVisibleGroups: Set<String> = [projectsGroupID, filesGroupID]
     static let minSizeOptionsMB = [50, 100, 250, 500, 1000]
     private static let rootsKey = "projectRoots"
@@ -68,7 +68,7 @@ final class AppModel {
     private(set) var groups: [CleanupGroup] = []
     private(set) var results: [RuleResult] = []
     private(set) var selected: Set<String> = []
-    /// Що користувач вибрав чи зняв руками (відрізняємо від автоматичного вибору в діагностиці).
+    /// What the user selected or deselected by hand (as opposed to the automatic selection in diagnostics).
     private(set) var manuallyChanged: Set<String> = []
     private(set) var ruleBlocks: [String: String] = [:]
     private(set) var snapshot = RunningSnapshot()
@@ -81,17 +81,17 @@ final class AppModel {
     private(set) var lastScan: Date?
     private(set) var projectRoots: [URL] = []
     private(set) var rootsMessage: String?
-    /// Що робить скан просто зараз («Шукаю дублікати…»).
+    /// What the scan is doing right now ("Looking for duplicates…").
     private(set) var statusText: String?
-    /// Іде збір карти зайнятого місця (її можна пропустити).
+    /// The disk usage map is being collected (it can be skipped).
     private(set) var collectingDiagnostics = false
     private var diagnosticsStop = StopFlag()
     private(set) var largeFileMinMB = 100
-    /// Що вибрав користувач (за замовчуванням системна мова) і мова, яка з цього випливає.
+    /// What the user chose (the system language by default) and the language that follows from it.
     private(set) var languageChoice: LanguageChoice = .system
     private(set) var language: Language = .en
 
-    /// Чи збирати карту зайнятого місця під час пробного запуску (довго; самоперевірка може її пропустити).
+    /// Whether to collect the disk usage map during a dry run (slow; the self-test may skip it).
     var diagnosticsSurveyEnabled = true
     var selectedGroupID: String?
     var dryRun = false
@@ -103,18 +103,18 @@ final class AppModel {
     private var ruleSet: RuleSet?
     private var scanTask: Task<Void, Never>?
     private var scanGeneration = 0
-    /// Доступ з'явився посеред скану: після нього скануємо ще раз.
+    /// Access appeared in the middle of a scan: scan again once it finishes.
     private var rescanAfterScan = false
     private var entryLocation: [String: (rule: Int, entry: Int)] = [:]
 
     private var home: URL { FileManager.default.homeDirectoryForCurrentUser }
 
-    // MARK: - Життєвий цикл
+    // MARK: - Lifecycle
 
-    /// Правила вантажимо одразу, до першого кадру: тоді сайдбар не перебудовується й вибір групи не змінюється
-    /// посеред відмальовування (це викликало попередження NSTableView про реентерабельність).
+    /// Load the rules right away, before the first frame: then the sidebar isn't rebuilt and the group selection
+    /// doesn't change in the middle of drawing (that triggered the NSTableView reentrancy warning).
     init() {
-        // Мову застосовуємо першою: правила й тексти скану мають одразу вийти потрібною мовою.
+        // Apply the language first: the rules and scan texts must come out in the right language from the start.
         let savedChoice = UserDefaults.standard.string(forKey: Self.languageKey).flatMap(LanguageChoice.init(rawValue:)) ?? .system
         languageChoice = savedChoice
         language = savedChoice.resolved
@@ -135,15 +135,15 @@ final class AppModel {
         guard ruleSet != nil, scanner == nil else { return }
         loadProjectRoots()
         refreshSystemState()
-        // Перший запуск без дозволу: пояснюємо, як його дати (один раз; далі лишається банер).
+        // First launch without the permission: explain how to grant it (once; after that the banner remains).
         if !hasFullDiskAccess, !UserDefaults.standard.bool(forKey: Self.fdaDismissedKey) {
             showFullDiskAccessGuide = true
         }
         scan()
     }
 
-    /// Оновлює диск і стан Full Disk Access. Якщо доступ щойно з'явився, дані скану застарілі (Кошик, бекапи,
-    /// Mail були недоступні), тож скануємо заново автоматично.
+    /// Refreshes the disk and the Full Disk Access state. If access has just appeared, the scan data is stale (Trash,
+    /// backups and Mail were inaccessible), so we rescan automatically.
     func refreshSystemState(allowRescan: Bool = true) {
         disk = DiskInfo.current()
         let granted = FullDiskAccess.isGranted()
@@ -168,34 +168,34 @@ final class AppModel {
         NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
     }
 
-    /// Після видачі Full Disk Access macOS застосовує дозвіл лише до нового запуску.
+    /// After Full Disk Access is granted, macOS applies the permission only to a new launch.
     var canRelaunch: Bool { Bundle.main.bundlePath.hasSuffix(".app") }
 
     func relaunch() {
         guard canRelaunch else { return }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        // Шлях передаємо окремим аргументом ($0), а не вставляємо в команду.
+        // Pass the path as a separate argument ($0) instead of embedding it in the command.
         process.arguments = ["-c", "/bin/sleep 1; /usr/bin/open -n \"$0\"", Bundle.main.bundlePath]
         try? process.run()
         NSApp.terminate(nil)
     }
 
-    // MARK: - Мова
+    // MARK: - Language
 
-    /// Перемикає мову: зберігає вибір, перечитує правила (назви груп і правил) і скануємо заново, бо частину
-    /// текстів (причини блокування, підписи елементів) створює саме скан. Вибір у списку скидається.
+    /// Switches the language: saves the choice, reloads the rules (group and rule names) and rescans, because some of
+    /// the texts (block reasons, item labels) are produced by the scan itself. The selection in the list is reset.
     func setLanguageChoice(_ choice: LanguageChoice) {
         guard phase != .cleaning, choice != languageChoice else { return }
         languageChoice = choice
         UserDefaults.standard.set(choice.rawValue, forKey: Self.languageKey)
         let resolved = choice.resolved
-        // «Системна» могла дати ту саму мову, що й була: перемальовувати нічого.
+        // "System default" may have resolved to the same language as before: nothing to redraw.
         guard resolved != language else { return }
         language = resolved
         Loc.current = resolved
         reloadRules()
-        // До `start()` сканера ще немає: його створить `start()` з уже перечитаними правилами.
+        // Before `start()` there is no scanner yet: `start()` will create it with the already reloaded rules.
         guard scanner != nil else { return }
         rebuildScanner()
         scan()
@@ -215,7 +215,7 @@ final class AppModel {
         }
     }
 
-    // MARK: - Папки проєктів
+    // MARK: - Project folders
 
     private func loadProjectRoots() {
         if let saved = UserDefaults.standard.array(forKey: Self.rootsKey) as? [String] {
@@ -231,7 +231,8 @@ final class AppModel {
         scanner = DiskScanner(ruleSet: ruleSet, home: home, projectRoots: projectRoots, fileSettings: fileSettings)
     }
 
-    /// Де шукати особисті файли: типові папки користувача, без папок проєктів (для них є своя вкладка).
+    /// Where to look for personal files: the user's standard folders, excluding project folders (they have their own
+    /// tab).
     var fileSettings: FileScanSettings {
         FileScanSettings(
             roots: FileScanSettings.defaultRoots(home: home), excludedRoots: projectRoots,
@@ -274,7 +275,7 @@ final class AppModel {
         scan()
     }
 
-    // MARK: - Сканування
+    // MARK: - Scanning
 
     func scan() {
         guard let scanner, phase != .cleaning else { return }
@@ -296,7 +297,7 @@ final class AppModel {
             var lastFlush = ContinuousClock.now
 
             for await event in scanner.scan() {
-                // Подія від скасованого скану не має зачепити свіжий стан.
+                // An event from a cancelled scan must not touch the fresh state.
                 guard let self, self.scanGeneration == generation else { return }
                 switch event {
                 case .discovered(let found):
@@ -318,7 +319,7 @@ final class AppModel {
                     self.statusText = text
                 case .measured(let id, let usage):
                     pending.append((id, usage))
-                    // Об'єднуємо оновлення, щоб інтерфейс не перемальовувався на кожну подію.
+                    // Batch the updates so the UI isn't redrawn on every event.
                     if ContinuousClock.now - lastFlush > .milliseconds(120) {
                         self.apply(pending)
                         pending.removeAll()
@@ -361,21 +362,21 @@ final class AppModel {
         await Task.detached { DiskScanner.ruleBlocks(for: rules, snapshot: snapshot) }.value
     }
 
-    /// Викликається періодично: користувач міг запустити чи закрити застосунок.
+    /// Called periodically: the user may have launched or quit an app.
     func refreshRunning() async {
         guard phase != .cleaning else { return }
         let fresh = RunningSnapshot.current()
         let blocks = await Self.computeRuleBlocks(results.map(\.rule), snapshot: fresh)
         snapshot = fresh
         ruleBlocks = blocks
-        // Те, що стало заблоковане, більше не вважаємо вибраним.
+        // Whatever became blocked is no longer considered selected.
         for entry in allEntries where selected.contains(entry.id) && !isSelectable(entry) {
             selected.remove(entry.id)
         }
         refreshSystemState()
     }
 
-    // MARK: - Доступ до даних
+    // MARK: - Data access
 
     var allEntries: [Entry] { results.flatMap(\.entries) }
 
@@ -394,12 +395,12 @@ final class AppModel {
         result.entries.contains { $0.measurement == nil && $0.lockedReason == nil }
     }
 
-    /// Групи з налаштуваннями («Проєкти», «Файли») видно завжди, решту лише коли є що показати.
+    /// Groups with settings ("Projects", "Files") are always visible, the rest only when there is something to show.
     func isGroupVisible(_ group: CleanupGroup) -> Bool {
         Self.alwaysVisibleGroups.contains(group.id) || !visibleResults(in: group.id).isEmpty
     }
 
-    /// Якщо вибрана група зникла чи порожня, переходимо до першої з даними.
+    /// If the selected group has disappeared or is empty, move to the first one that has data.
     private func ensureValidSelection() {
         let visible = groups.filter(isGroupVisible)
         if let current = selectedGroupID, visible.contains(where: { $0.id == current }),
@@ -407,7 +408,7 @@ final class AppModel {
         selectedGroupID = visible.first(where: { !visibleResults(in: $0.id).isEmpty })?.id ?? visible.first?.id
     }
 
-    /// Правила, які варто показувати у групі.
+    /// The rules worth showing in the group.
     func visibleResults(in groupID: String) -> [RuleResult] {
         results.filter { $0.rule.group == groupID && isVisible($0) }
     }
@@ -427,7 +428,7 @@ final class AppModel {
             }
     }
 
-    // MARK: - Розміри й вибір
+    // MARK: - Sizes and selection
 
     func totalBytes(of result: RuleResult) -> Int64 { result.entries.reduce(0) { $0 + $1.bytes } }
 
@@ -444,13 +445,13 @@ final class AppModel {
     var selectedCarefulCount: Int {
         selectedEntries.filter { rule($0.ruleID)?.risk == .careful }.count
     }
-    /// Скільки вибраного потребує пароля адміна.
+    /// How much of the selection needs the administrator password.
     var selectedAdminCount: Int { selectedEntries.filter { $0.scope == .system || $0.needsAdmin }.count }
-    /// Особисті файли, бекапи й програми серед вибраного: їх варто перевірити ще раз.
+    /// Personal files, backups and apps among the selection: they are worth a second look.
     var selectedPersonalCount: Int {
         selectedEntries.filter { [.userFile, .backup, .application].contains($0.scope) }.count
     }
-    /// Те, що піде в Кошик (можна повернути), і те, що видаляється назовсім.
+    /// What goes to the Trash (can be restored) and what is deleted permanently.
     var selectedTrashBytes: Int64 { selectedEntries.filter { $0.action == .trashPaths }.reduce(0) { $0 + $1.bytes } }
     var selectedTrashCount: Int { selectedEntries.filter { $0.action == .trashPaths }.count }
     var selectedDeleteBytes: Int64 { selectedBytes - selectedTrashBytes }
@@ -459,8 +460,8 @@ final class AppModel {
         triState(for: result.entries.filter(isSelectable))
     }
 
-    /// Рекомендоване: те саме, що вибирається за замовчуванням після скану. Групові чекбокси працюють лише з ним,
-    /// тому одним кліком не можна вибрати особисті файли, програми, бекапи чи кеші, які краще перевірити.
+    /// Recommended: the same as what is selected by default after a scan. Group checkboxes work only with it, so
+    /// personal files, apps, backups or caches that are better reviewed can't be selected with a single click.
     func isRecommended(_ entry: Entry) -> Bool {
         guard isSelectable(entry), let rule = rule(entry.ruleID) else { return false }
         return DiskScanner.isSelectedByDefault(entry, rule: rule)
@@ -478,7 +479,7 @@ final class AppModel {
         triState(for: recommendedEntries(inGroup: id))
     }
 
-    /// Чи можна вибрати все в правилі одним чекбоксом.
+    /// Whether everything in a rule can be selected with one checkbox.
     func canBulkSelect(_ result: RuleResult) -> Bool {
         result.rule.bulkSelectable && result.entries.contains(where: isSelectable)
     }
@@ -512,13 +513,13 @@ final class AppModel {
         }
     }
 
-    // MARK: - Очищення
+    // MARK: - Cleaning
 
     func clean() {
         guard let scanner, phase == .idle else { return }
         let entries = selectedEntries
         let dryRun = dryRun
-        // У пробному запуску діагностику збирають і без вибору: вона потрібна, щоб налаштувати правила.
+        // In a dry run diagnostics are collected even with nothing selected: they are needed to tune the rules.
         guard !entries.isEmpty || dryRun else { return }
 
         diskBeforeClean = DiskInfo.current()
@@ -526,7 +527,7 @@ final class AppModel {
         cleanProgress = CleanProgress(done: 0, total: max(entries.count, 1), current: "")
 
         let engine = CleanEngine(safety: scanner.safety)
-        // Правила беремо з результатів скану: там і вбудовані, і динамічні (проєкти, файли).
+        // Take the rules from the scan results: they include both built-in and dynamic ones (projects, files).
         let rules = results.map(\.rule)
         let diagnostic = dryRun ? makeDiagnosticInput() : nil
         let stop = StopFlag()
@@ -543,7 +544,7 @@ final class AppModel {
                 engine.clean(entries: entries, rules: rules, dryRun: dryRun, progress: progressSink)
             }.value
 
-            // Пробний запуск завжди лишає діагностичний файл, який можна переслати розробнику.
+            // A dry run always leaves a diagnostics file that can be sent to the developer.
             if let diagnostic {
                 let base = report
                 self?.collectingDiagnostics = true
@@ -570,17 +571,17 @@ final class AppModel {
             self.phase = .idle
             self.refreshSystemState()
             self.showReport = true
-            // Після справжнього видалення оновлюємо список, щоб він відповідав диску.
+            // After a real deletion, refresh the list so it matches the disk.
             if !dryRun { self.scan() }
         }
     }
 
-    /// Зупиняє збір карти місця; звіт збережеться з тим, що встигли дорахувати.
+    /// Stops collecting the usage map; the report is saved with whatever has been computed so far.
     func skipDiagnostics() {
         diagnosticsStop.set()
     }
 
-    /// Знімок стану для діагностичного файлу (без довгих операцій: їх робить фонове завдання).
+    /// A state snapshot for the diagnostics file (no long operations: the background task does those).
     private func makeDiagnosticInput() -> DiagnosticInput {
         let blocks = ruleBlocks
         let snap = snapshot
@@ -595,7 +596,7 @@ final class AppModel {
             apps: [], survey: [], home: home)
     }
 
-    // MARK: - Допоміжне
+    // MARK: - Helpers
 
     func revealInFinder(_ entry: Entry) {
         NSWorkspace.shared.activateFileViewerSelecting([entry.url])

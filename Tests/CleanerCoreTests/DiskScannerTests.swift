@@ -84,7 +84,7 @@ final class DiskScannerTests: CleanerTestCase {
         let results = DiskScanner(ruleSet: makeRuleSet([catchAll, yarn, studio]), home: home.url).discover()
 
         let rest = try XCTUnwrap(results.first { $0.id == "rest" })
-        // Yarn і Google покриті точнішими правилами; com.apple.* виключено; .DS_Store службовий.
+        // Yarn and Google are covered by more specific rules; com.apple.* is excluded; .DS_Store is a system file.
         XCTAssertEqual(rest.entries.map(\.name), ["SomeApp"])
     }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Резервні копії iPhone/iPad, які Finder зберігає в `~/Library/Application Support/MobileSync/Backup`.
+/// iPhone/iPad backups that Finder stores in `~/Library/Application Support/MobileSync/Backup`.
 public enum BackupProvider {
     public static var rule: CleanupRule {
         CleanupRule(
@@ -15,7 +15,7 @@ public enum BackupProvider {
         do {
             names = try FileManager.default.contentsOfDirectory(atPath: root.path)
         } catch {
-            // Немає теки: резервних копій немає. Немає доступу: підказуємо про Full Disk Access.
+            // No folder: there are no backups. No access: hint about Full Disk Access.
             let denied = FullDiskAccess.isDenied(error)
             return RuleResult(
                 rule: rule, entries: [],

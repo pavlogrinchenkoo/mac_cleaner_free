@@ -44,7 +44,7 @@ final class PathGuardTests: CleanerTestCase {
         let guardian = PathGuard(home: home.url)
         XCTAssertThrowsError(try guardian.validate(URL(fileURLWithPath: "/etc/hosts")))
         XCTAssertThrowsError(try guardian.validate(URL(fileURLWithPath: "/Users/someoneelse/Library/Caches/x")))
-        // Папка-сусід з тим самим префіксом імені не має проходити.
+        // A sibling folder with the same name prefix must not pass.
         let sibling = home.url.deletingLastPathComponent().appendingPathComponent(home.url.lastPathComponent + "-evil/Library/Caches/x")
         XCTAssertThrowsError(try guardian.validate(sibling))
     }
@@ -52,7 +52,7 @@ final class PathGuardTests: CleanerTestCase {
     func testRejectsParentTraversal() throws {
         let home = try FakeHome()
         let guardian = PathGuard(home: home.url)
-        // standardizedFileURL схлопує `..`, тож це вже шлях поза Caches, у Documents.
+        // standardizedFileURL collapses `..`, so this is already a path outside Caches, in Documents.
         let sneaky = URL(fileURLWithPath: home.url.path + "/Library/Caches/../../Documents/x")
         XCTAssertThrowsError(try guardian.validate(sneaky))
     }
@@ -69,7 +69,7 @@ final class PathGuardTests: CleanerTestCase {
     }
 
     func testSymlinkEntryItselfIsAllowed() throws {
-        // Сам symlink як елемент — ок: видалиться посилання, а не ціль.
+        // The symlink itself as an entry is fine: the link gets removed, not its target.
         let home = try FakeHome()
         let target = try FakeHome()
         try FileManager.default.createDirectory(at: home.path("Library/Caches"), withIntermediateDirectories: true)

@@ -3,7 +3,7 @@ import Foundation
 
 public struct DiskInfo: Sendable, Equatable {
     public let totalBytes: Int64
-    /// Вільно за версією Finder (з урахуванням purgeable).
+    /// Free space as Finder reports it (including purgeable).
     public let freeBytes: Int64
 
     public var usedBytes: Int64 { max(0, totalBytes - freeBytes) }
@@ -20,7 +20,7 @@ public struct DiskInfo: Sendable, Equatable {
 }
 
 public enum FullDiskAccess {
-    /// Системна база TCC читається лише з Full Disk Access.
+    /// The system TCC database can only be read with Full Disk Access.
     public static func isGranted() -> Bool {
         let fd = open("/Library/Application Support/com.apple.TCC/TCC.db", O_RDONLY)
         guard fd >= 0 else { return false }
@@ -32,7 +32,7 @@ public enum FullDiskAccess {
 }
 
 extension FullDiskAccess {
-    /// Чи помилка означає «macOS не дає доступу» (зазвичай потрібен Full Disk Access).
+    /// Whether the error means "macOS denies access" (usually Full Disk Access is needed).
     public static func isDenied(_ error: Error) -> Bool {
         let nsError = error as NSError
         if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileReadNoPermissionError { return true }

@@ -3,16 +3,16 @@ import CoreServices
 import Darwin
 import Foundation
 
-/// Налаштування пошуку особистих файлів.
+/// Settings for the personal-file search.
 public struct FileScanSettings: Sendable, Equatable {
-    /// Де шукати (Downloads, Desktop, Documents, Movies, Music, Pictures).
+    /// Where to search (Downloads, Desktop, Documents, Movies, Music, Pictures).
     public var roots: [URL]
-    /// Сюди не заходимо: папки проєктів (там є своя вкладка).
+    /// We do not descend into these: project folders (they have their own tab).
     public var excludedRoots: [URL]
     public var minLargeBytes: Int64
     public var minDuplicateBytes: Int64
     public var minInstallerBytes: Int64
-    /// Скільки найбільших файлів показувати максимум.
+    /// The maximum number of the largest files to show.
     public var maxLargeEntries: Int
 
     public static let defaultMinLargeBytes: Int64 = 100_000_000
@@ -33,7 +33,7 @@ public struct FileScanSettings: Sendable, Equatable {
         self.maxLargeEntries = maxLargeEntries
     }
 
-    /// Типові папки користувача, що існують.
+    /// The user's standard folders that exist.
     public static func defaultRoots(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
         UserFileGuard.defaultRootNames
             .map { home.appendingPathComponent($0, isDirectory: true) }
@@ -41,7 +41,7 @@ public struct FileScanSettings: Sendable, Equatable {
     }
 }
 
-/// Один файл з інвентаризації.
+/// A single file from the inventory.
 public struct FileInfo: Sendable, Hashable {
     public let url: URL
     public let allocatedBytes: Int64
@@ -53,7 +53,7 @@ public struct FileInfo: Sendable, Hashable {
     public let linkCount: UInt16
 }
 
-/// Категорія великого файлу.
+/// Category of a large file.
 public enum FileCategory: String, CaseIterable, Sendable {
     case media, archives, design, other
 
@@ -107,7 +107,7 @@ public enum FileCategory: String, CaseIterable, Sendable {
 public enum FileScanner {
     public static let installerExtensions: Set<String> = ["dmg", "pkg", "mpkg", "xip", "iso"]
 
-    // Правила обчислюються, а не зберігаються: назви й описи залежать від мови.
+    // Rules are computed rather than stored: titles and descriptions depend on the language.
     public static var installersRule: CleanupRule {
         CleanupRule(
             id: "files.installers", group: "files", title: L("Installers in Downloads and on the Desktop"),
@@ -126,9 +126,10 @@ public enum FileScanner {
         [installersRule] + FileCategory.allCases.map(\.rule) + [duplicatesRule]
     }
 
-    // MARK: - Інвентаризація
+    // MARK: - Inventory
 
-    /// Один обхід усіх папок: файли від `minBytes`. Пропускає приховане, пакети, git-репозиторії й папки проєктів.
+    /// One pass over all folders: files of at least `minBytes`. Skips hidden items, packages, git repositories
+    /// and project folders.
     public static func inventory(settings: FileScanSettings, minBytes: Int64, isCancelled: () -> Bool = { false }) -> [FileInfo] {
         var files: [FileInfo] = []
         let excluded = settings.excludedRoots.map { $0.standardizedFileURL.path }
@@ -158,7 +159,7 @@ public enum FileScanner {
                     }
                 } else if info == FTS_F {
                     guard !name.hasPrefix("."), let st = ent.pointee.fts_statp?.pointee,
-                          (st.st_mode & S_IFMT) == S_IFREG, (st.st_flags & 0x4000_0000) == 0 // не iCloud-заглушка
+                          (st.st_mode & S_IFMT) == S_IFREG, (st.st_flags & 0x4000_0000) == 0 // not an iCloud placeholder
                     else { continue }
                     let allocated = Int64(st.st_blocks) * 512
                     guard allocated >= minBytes else { continue }
@@ -177,9 +178,9 @@ public enum FileScanner {
         return lstat(directory + "/.git", &st) == 0
     }
 
-    // MARK: - Результати
+    // MARK: - Results
 
-    /// Повний цикл: інсталятори, великі файли за категоріями, дублікати.
+    /// Full cycle: installers, large files by category, duplicates.
     public static func results(
         settings: FileScanSettings, home: URL,
         status: (String) -> Void = { _ in }, isCancelled: @Sendable () -> Bool = { false }
@@ -194,7 +195,7 @@ public enum FileScanner {
         if isCancelled() { return [] }
 
         let installersRule = Self.installersRule, duplicatesRule = Self.duplicatesRule
-        // Спершу дублікати: їхні зайві копії не показуємо ще й у великих файлах та інсталяторах.
+        // Duplicates first: their extra copies are not shown again among large files and installers.
         var duplicateEntries: [Entry] = []
         var duplicateIDs = Set<String>()
         for group in groups {
@@ -247,8 +248,8 @@ public enum FileScanner {
     }
 
     private static func entry(for file: FileInfo, rule: CleanupRule, home: URL, subtitle: String, keeper: Keeper? = nil) -> Entry {
-        // «Відкривали»: пізніше з двох: останнє відкриття (Spotlight) і зміна файлу.
-        // Запит до Spotlight повільний, тож лише для великих файлів.
+        // "Opened": the later of two dates: the last open (Spotlight) and the file modification.
+        // The Spotlight query is slow, so it is done only for large files.
         let used = (file.allocatedBytes >= 20_000_000 ? lastUsedDate(of: file.url) : nil) ?? .distantPast
         let activity = max(used, Date(timeIntervalSince1970: file.modified))
         var entry = Entry(
@@ -264,20 +265,20 @@ public enum FileScanner {
         path.hasPrefix(home.path) ? "~" + path.dropFirst(home.path.count) : path
     }
 
-    /// Дата останнього відкриття з індексу Spotlight (може бути недоступна).
+    /// Date of the last open from the Spotlight index (may be unavailable).
     public static func lastUsedDate(of url: URL) -> Date? {
         guard let item = MDItemCreateWithURL(kCFAllocatorDefault, url as CFURL) else { return nil }
         return MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date
     }
 }
 
-/// Пошук точних дублікатів: розмір → частковий хеш → повний SHA-256.
+/// Exact duplicate search: size → partial hash → full SHA-256.
 public enum DuplicateFinder {
     private static let maxFileBytes: Int64 = 8_000_000_000
     private static let sampleBytes = 65_536
 
     public static func find(files: [FileInfo], minBytes: Int64, isCancelled: @Sendable () -> Bool = { false }) -> [[FileInfo]] {
-        // Hard link-и (той самий inode) — це один файл, не дублікат.
+        // Hard links (the same inode) are one file, not a duplicate.
         var seenInodes = Set<String>()
         let candidates = files.filter { file in
             file.logicalBytes >= minBytes && file.logicalBytes <= maxFileBytes
@@ -288,7 +289,7 @@ public enum DuplicateFinder {
         let sameSize = bySize.flatMap { $0 }
         if sameSize.isEmpty { return [] }
 
-        // Етап 1: початок і кінець файлу.
+        // Stage 1: the start and the end of the file.
         let partial = parallelHash(sameSize, isCancelled: isCancelled) { partialHash($0) }
         if isCancelled() { return [] }
         var partialGroups: [String: [FileInfo]] = [:]
@@ -299,7 +300,7 @@ public enum DuplicateFinder {
         let likely = partialGroups.values.filter { $0.count > 1 }.flatMap { $0 }
         if likely.isEmpty { return [] }
 
-        // Етап 2: весь вміст.
+        // Stage 2: the whole content.
         let full = parallelHash(likely, isCancelled: isCancelled) { fullHash($0) }
         if isCancelled() { return [] }
         var fullGroups: [String: [FileInfo]] = [:]
@@ -310,7 +311,7 @@ public enum DuplicateFinder {
         return fullGroups.values.filter { $0.count > 1 }
     }
 
-    /// Який файл лишається. Надаємо перевагу тим, що не в Downloads/Desktop, потім давнішим і з коротшим шляхом.
+    /// Which file stays. Prefer ones not in Downloads/Desktop, then older ones and ones with a shorter path.
     public static func chooseKeeper(_ group: [FileInfo], home: URL) -> FileInfo {
         func score(_ file: FileInfo) -> Int {
             let path = file.url.path
@@ -325,7 +326,7 @@ public enum DuplicateFinder {
         }!
     }
 
-    // MARK: Хешування
+    // MARK: Hashing
 
     private final class Results: @unchecked Sendable {
         private let lock = NSLock()

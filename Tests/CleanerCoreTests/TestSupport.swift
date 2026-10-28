@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import CleanerCore
 
-/// Базовий клас тестів. Більшість перевірок порівнює українські тексти інтерфейсу, тому тести йдуть українською
-/// незалежно від мови Mac (англійську перевіряє LocalizationTests).
+/// Base test class. Most checks compare Ukrainian UI texts, so the tests run in Ukrainian
+/// regardless of the Mac's language (English is covered by LocalizationTests).
 class CleanerTestCase: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -11,7 +11,7 @@ class CleanerTestCase: XCTestCase {
     }
 }
 
-/// Підроблена домашня папка у temp, щоб тести ніколи не торкались справжньої.
+/// A fake home folder in temp, so tests never touch the real one.
 final class FakeHome {
     let url: URL
 
@@ -22,7 +22,7 @@ final class FakeHome {
     }
 
     deinit {
-        // Права могли бути знято тестом.
+        // The test may have removed the permissions.
         _ = try? FileManager.default.removeItem(at: url)
     }
 
@@ -57,7 +57,7 @@ func makeRuleSet(_ rules: [CleanupRule]) -> RuleSet {
     RuleSet(groups: [CleanupGroup(id: "g", title: "G", symbol: "gear")], rules: rules)
 }
 
-/// Підроблений запуск команд: запам'ятовує виклики й віддає наперед задані відповіді.
+/// A fake command runner: records the calls and returns canned responses.
 final class FakeRunner: CommandRunner, @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [[String]] = []
@@ -76,7 +76,7 @@ final class FakeRunner: CommandRunner, @unchecked Sendable {
     }
 }
 
-/// Підроблений «адмін»: нічого не питає, а справжні файли видаляє сам (у тестах це temp-папка).
+/// A fake "admin": asks for nothing and deletes the real files itself (in tests that is a temp folder).
 final class FakePrivileged: PrivilegedRunner, @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [[String]] = []
@@ -106,7 +106,7 @@ func setModified(_ url: URL, daysAgo: Double) throws {
     )
 }
 
-/// Підроблений Кошик: переносить у temp-папку, а не в справжній Кошик користувача.
+/// A fake Trash: moves items into a temp folder rather than the user's real Trash.
 final class FakeTrasher: Trasher, @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [String] = []
@@ -146,7 +146,7 @@ func makeEngine(
     )
 }
 
-/// Мінімальний `.app` з Info.plist.
+/// A minimal `.app` with an Info.plist.
 @discardableResult
 func makeApp(_ home: FakeHome, at relative: String, bundleID: String, name: String, version: String = "1.0") throws -> URL {
     let app = home.path(relative)

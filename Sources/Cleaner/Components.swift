@@ -1,7 +1,7 @@
 import CleanerCore
 import SwiftUI
 
-/// Чекбокс із трьома станами (усі / частина / жоден).
+/// Checkbox with three states (all / some / none).
 struct TriStateBox: View {
     let state: TriState
     var enabled = true
@@ -50,7 +50,7 @@ struct RiskBadge: View {
     }
 }
 
-/// Скільки вільно на диску.
+/// How much free space is left on the disk.
 struct DiskCard: View {
     let disk: DiskInfo?
 
@@ -79,7 +79,7 @@ struct DiskCard: View {
     }
 }
 
-/// Тонка смужка, що показує частку елемента від найбільшого у списку.
+/// Thin bar showing an item's share relative to the largest one in the list.
 struct SizeBar: View {
     let fraction: Double
 
@@ -95,7 +95,7 @@ struct SizeBar: View {
     }
 }
 
-/// Вибір мови інтерфейсу: «Системна», English, Українська. Назви мов показуємо їхніми ж мовами.
+/// Interface language picker: "System", English, Ukrainian. Language names are shown in their own languages.
 struct LanguageMenu: View {
     @Environment(AppModel.self) private var model
 

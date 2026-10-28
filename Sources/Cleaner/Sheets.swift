@@ -147,7 +147,8 @@ private struct ProblemList: View {
     }
 }
 
-/// Пояснення, як дати Full Disk Access. Дозвіл не можна «запитати» діалогом: macOS вмикає його лише вручну в налаштуваннях.
+/// Explains how to grant Full Disk Access. The permission can't be "requested" with a dialog: macOS only lets the
+/// user enable it manually in Settings.
 struct FullDiskAccessSheet: View {
     @Environment(AppModel.self) private var model
 
@@ -190,7 +191,7 @@ struct FullDiskAccessSheet: View {
         .padding(24)
         .frame(width: 620)
         .task {
-            // Поки аркуш відкритий, стежимо за станом дозволу.
+            // While the sheet is open, keep watching the permission state.
             while !Task.isCancelled {
                 model.refreshSystemState()
                 try? await Task.sleep(for: .seconds(1))

@@ -4,17 +4,17 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if SelfTest.isRequested {
-            // Безголовий режим: без Dock і без вікна, щоб не заважати користувачу.
+            // Headless mode: no Dock icon and no window, so it doesn't get in the user's way.
             NSApp.setActivationPolicy(.accessory)
             DispatchQueue.main.async { NSApp.windows.forEach { $0.orderOut(nil) } }
             return
         }
-        // Потрібно, коли запускаємо не з .app (наприклад `swift run`): інакше вікно не отримує фокус.
+        // Needed when launching outside an .app bundle (e.g. `swift run`): otherwise the window doesn't get focus.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
     }
 
-    /// Безголовий режим самоперевірки живе без вікон і завершується сам.
+    /// The headless self-test mode runs without windows and exits on its own.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !SelfTest.isRequested }
 }
 
@@ -32,7 +32,7 @@ struct CleanerApp: App {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 960, minHeight: 620)
-                // Інша мова: перебудовуємо все вікно, щоб кожен L(...) обчислився заново.
+                // Different language: rebuild the whole window so every L(...) is evaluated again.
                 .id(model.language)
         }
         .defaultSize(width: 1100, height: 720)

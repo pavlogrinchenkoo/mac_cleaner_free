@@ -1,22 +1,22 @@
 import Darwin
 import Foundation
 
-/// Вимірює розмір на диску через `fts` — так само швидко, як `du`.
+/// Measures the size on disk via `fts` — as fast as `du`.
 public enum DiskSize {
     private struct FileID: Hashable {
         let dev: Int32
         let ino: UInt64
     }
 
-    /// Хмарні сховища (iCloud Drive, Google Drive тощо). Читання їхнього вмісту йде через службу синхронізації
-    /// і може зависати надовго, тому їх не міряємо й не обходимо ніколи.
+    /// Cloud storage (iCloud Drive, Google Drive, etc.). Reading its contents goes through the sync service
+    /// and can hang for a long time, so we never measure or traverse it.
     public static func isCloudProviderDirectory(_ path: String) -> Bool {
         path.hasSuffix("/Library/Mobile Documents") || path.hasSuffix("/Library/CloudStorage")
             || path.contains("/Library/Mobile Documents/") || path.contains("/Library/CloudStorage/")
     }
 
-    /// Розмір `url` (файл чи папка, без переходу за symlink-ами і на інші томи).
-    /// Повертає `.zero`, якщо шляху не існує. Після `deadline` припиняє й ставить `timedOut`.
+    /// Size of `url` (a file or folder; does not follow symlinks or cross onto other volumes).
+    /// Returns `.zero` if the path does not exist. After `deadline` it stops and sets `timedOut`.
     public static func measure(_ url: URL, deadline: Date? = nil) -> DiskUsage {
         var result = DiskUsage.zero
         if isCloudProviderDirectory(url.path) { return result }
@@ -46,18 +46,19 @@ public enum DiskSize {
             let info = Int32(ent.pointee.fts_info)
             switch info {
             case FTS_DP:
-                // Папку рахуємо один раз, при вході (FTS_D), а не при виході.
+                // A folder is counted once, on entry (FTS_D), not on exit.
                 continue
             case FTS_D, FTS_F, FTS_SL, FTS_SLNONE, FTS_DEFAULT:
                 guard let st = ent.pointee.fts_statp?.pointee else { continue }
                 if info == FTS_D {
-                    // Не заходимо в хмарні теки й теки-заглушки iCloud (їх вміст не на диску).
+                    // Do not descend into cloud folders and iCloud placeholder folders
+                    // (their contents are not on disk).
                     let path = String(cString: ent.pointee.fts_path)
                     if isCloudProviderDirectory(path) || (st.st_flags & 0x4000_0000) != 0 {
                         fts_set(stream, ent, FTS_SKIP)
                     }
                 }
-                // Hard link-и однієї речі рахуємо один раз.
+                // Hard links to the same file are counted once.
                 if st.st_nlink > 1 && (st.st_mode & S_IFMT) != S_IFDIR {
                     if !seenLinks.insert(FileID(dev: st.st_dev, ino: st.st_ino)).inserted { continue }
                 }
@@ -66,7 +67,7 @@ public enum DiskSize {
                 let mtime = Int(st.st_mtimespec.tv_sec)
                 if mtime > newest { newest = mtime }
             case FTS_DNR, FTS_ERR, FTS_NS, FTS_NSOK:
-                // Немає доступу або файл зник посеред сканування.
+                // No access, or the file vanished in the middle of the scan.
                 if ent.pointee.fts_errno == EACCES || ent.pointee.fts_errno == EPERM {
                     result.hadErrors = true
                 }

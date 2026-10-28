@@ -1,13 +1,14 @@
 import CleanerCore
 import Foundation
 
-// cleanerctl scan                      — показати, що можна почистити
-// cleanerctl clean                     — пробний запуск (нічого не видаляє)
-// cleanerctl clean --yes               — справді видалити те, що вибрано за замовчуванням
-// cleanerctl clean --yes --risk all    — разом з 🟡 обережними (крім того, що потребує пароля, та особистих файлів, бекапів і програм)
-// cleanerctl clean --rule <id> ...     — лише вказані правила (усе, що можна)
-// cleanerctl diagnose [--out файл]     — повний пробний запуск + діагностичний файл (для налаштування правил)
-// Додатково: --top N, --root <папка> (папки проєктів), --min-size <МБ> (великі файли), --no-files
+// cleanerctl scan                      — show what can be cleaned
+// cleanerctl clean                     — dry run (deletes nothing)
+// cleanerctl clean --yes               — actually delete what is selected by default
+// cleanerctl clean --yes --risk all    — together with the 🟡 careful ones (except what needs an administrator password,
+//                                        and personal files, backups and apps)
+// cleanerctl clean --rule <id> ...     — only the given rules (everything selectable)
+// cleanerctl diagnose [--out file]     — full dry run + a diagnostics file (for tuning the rules)
+// Also: --top N, --root <folder> (project folders), --min-size <MB> (large files), --no-files
 
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8))
@@ -92,7 +93,7 @@ let orderedIDs = order.enumerated().sorted { lhs, rhs in
     return L("  (%@ %ld days ago)", entry.ageLabel ?? L("modified"), Int(Date().timeIntervalSince(date) / 86_400))
 }
 
-/// Те, що UI вибрав би за замовчуванням.
+/// What the UI would select by default.
 @MainActor func defaultSelection() -> [Entry] {
     orderedIDs.compactMap { results[$0] }.flatMap { result in
         result.entries.filter { isSelectable($0, in: result.rule) && DiskScanner.isSelectedByDefault($0, rule: result.rule) }
@@ -186,7 +187,7 @@ for id in orderedIDs {
         if !onlyRules.isEmpty {
             take = onlyRules.contains(rule.id)
         } else if includeAll {
-            // Особисті файли, бекапи й програми лише явно: `--rule <id>`.
+            // Personal files, backups and apps only explicitly: `--rule <id>`.
             take = !rule.requiresAdmin && ![EntryScope.userFile, .backup, .application].contains(entry.scope)
         } else {
             take = DiskScanner.isSelectedByDefault(entry, rule: rule)

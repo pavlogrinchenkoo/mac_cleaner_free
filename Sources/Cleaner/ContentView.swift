@@ -41,7 +41,7 @@ struct ContentView: View {
         }
         .task {
             model.start()
-            // Користувач міг відкрити чи закрити Xcode/Chrome: оновлюємо блокування.
+            // The user may have opened or closed Xcode/Chrome: refresh the blocking.
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(4))
                 await model.refreshRunning()
@@ -103,10 +103,10 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Сайдбар
+// MARK: - Sidebar
 
-/// Власний сайдбар на ScrollView, а не `List`: `List(.sidebar)` стоїть на NSTableView, який на старті
-/// друкував попередження про реентерабельність (у майбутніх macOS воно стане помилкою).
+/// Custom sidebar built on ScrollView instead of `List`: `List(.sidebar)` sits on top of NSTableView, which printed
+/// a reentrancy warning at launch (in future macOS versions it will become an error).
 private struct SidebarView: View {
     @Environment(AppModel.self) private var model
 
@@ -157,7 +157,7 @@ private struct GroupRow: View {
     var body: some View {
         let state = model.state(ofGroup: group.id)
         HStack(spacing: 10) {
-            // Груповий чекбокс вибирає лише рекомендоване; решту (файли, програми) вибирають по одному.
+            // The group checkbox selects only what is recommended; the rest (files, apps) is selected one by one.
             TriStateBox(
                 state: state,
                 enabled: (model.phase == .idle || model.phase == .scanning) && model.hasRecommended(inGroup: group.id)
@@ -194,7 +194,7 @@ private struct GroupRow: View {
     }
 }
 
-// MARK: - Футер
+// MARK: - Footer
 
 private struct FooterBar: View {
     @Environment(AppModel.self) private var model
@@ -242,7 +242,7 @@ private struct FooterBar: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .tint(model.dryRun ? .accentColor : .red)
-            // У пробному запуску кнопка активна й без вибору: вона збирає діагностику.
+            // In a dry run the button is enabled even with nothing selected: it collects diagnostics.
             .disabled(model.phase != .idle || (!model.dryRun && model.selectedEntries.isEmpty))
             .keyboardShortcut(.return, modifiers: .command)
         }
@@ -252,7 +252,7 @@ private struct FooterBar: View {
     }
 }
 
-// MARK: - Банер Full Disk Access
+// MARK: - Full Disk Access banner
 
 private struct FullDiskAccessBanner: View {
     @Environment(AppModel.self) private var model

@@ -56,7 +56,7 @@ final class CloudAndBudgetTests: CleanerTestCase {
 
         XCTAssertEqual(DiskSize.measure(home.path("Library/Mobile Documents")).bytes, 0)
         XCTAssertEqual(DiskSize.measure(home.path("Library/Mobile Documents/iCloud~app/Documents")).bytes, 0)
-        // Обхід батьківської теки теж не заходить усередину.
+        // Walking the parent folder does not descend into it either.
         let library = DiskSize.measure(home.path("Library"))
         XCTAssertLessThan(library.bytes, 200_000, "вміст хмарних тек не врахований")
         XCTAssertGreaterThanOrEqual(library.bytes, 20_000)

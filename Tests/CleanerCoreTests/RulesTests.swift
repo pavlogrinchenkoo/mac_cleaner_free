@@ -16,7 +16,7 @@ final class RulesTests: CleanerTestCase {
         }
     }
 
-    /// Найважливіший тест: жоден шлях з вбудованих правил не може вказувати на заборонене місце.
+    /// The most important test: no path in the built-in rules may point to a forbidden location.
     func testEveryBuiltinRulePathPassesTheSafetyGuard() throws {
         let home = try FakeHome()
         let policy = SafetyPolicy(home: home.url)
@@ -68,7 +68,7 @@ final class RulesTests: CleanerTestCase {
         for kind in ArtifactKind.all { XCTAssertEqual(kind.rule.group, "projects") }
     }
 
-    /// «Безпечне» правило в Application Support може вказувати лише на теки кешу, ніколи на налаштування чи дані.
+    /// A "safe" rule in Application Support may only point to cache folders, never to settings or data.
     func testSafeRulesInApplicationSupportOnlyTargetCacheFolders() throws {
         let cacheMarkers = ["Cache", "Peak Files"]
         for rule in try RuleLoader.builtin().rules where rule.risk == .safe {
@@ -102,7 +102,7 @@ final class RulesTests: CleanerTestCase {
         XCTAssertTrue(merged.groups.contains { $0.id == "mine" })
     }
 
-    // MARK: - Локалізація правил
+    // MARK: - Rule localization
 
     private func ukrainianTranslations() throws -> RuleLoader.RuleTranslations {
         let url = try XCTUnwrap(RuleLoader.resourceURL("rules.uk"), "немає rules.uk.json")
@@ -146,12 +146,12 @@ final class RulesTests: CleanerTestCase {
         XCTAssertEqual(ukrainian.groups.first { $0.id == "apps" }?.title, "Кеші застосунків")
         XCTAssertEqual(english.rules.first { $0.id == "system.trash" }?.title, "Trash")
         XCTAssertEqual(ukrainian.rules.first { $0.id == "system.trash" }?.title, "Кошик")
-        // Усе, окрім текстів, однакове.
+        // Everything except the texts is identical.
         for (en, uk) in zip(english.rules, ukrainian.rules) {
             XCTAssertEqual(en.paths, uk.paths, en.id)
             XCTAssertEqual(en.risk, uk.risk, en.id)
         }
-        // load() без аргументів іде за поточною мовою (тести: українська).
+        // load() with no arguments follows the current language (tests: Ukrainian).
         XCTAssertEqual(try RuleLoader.builtin().groups.first { $0.id == "apps" }?.title, "Кеші застосунків")
     }
 

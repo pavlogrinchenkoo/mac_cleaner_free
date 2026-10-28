@@ -1,6 +1,6 @@
 import Foundation
 
-/// Знаходить, що можна почистити, і вимірює розміри.
+/// Finds what can be cleaned and measures sizes.
 public final class DiskScanner: Sendable {
     public let ruleSet: RuleSet
     public let safety: SafetyPolicy
@@ -10,7 +10,7 @@ public final class DiskScanner: Sendable {
     private let applicationRoots: [URL]?
     private let maxConcurrentMeasurements: Int
 
-    /// Службові файли, які не варто показувати як окремі елементи.
+    /// Housekeeping files that should not be shown as separate entries.
     private static let ignoredNames: Set<String> = [".DS_Store", ".localized", ".com.apple.timemachine.donotpresent"]
 
     public init(
@@ -34,17 +34,17 @@ public final class DiskScanner: Sendable {
         self.maxConcurrentMeasurements = maxConcurrentMeasurements
     }
 
-    // MARK: - Пошук елементів
+    // MARK: - Finding entries
 
-    /// Швидкий етап: лише перелічує папки за шляхами з правил, без вимірювання розмірів.
-    /// Правила з `provider` повертаються порожніми: їх заповнює `discoverDynamic()`.
+    /// Fast stage: only lists folders at the paths from the rules, without measuring sizes.
+    /// Rules with a `provider` are returned empty: `discoverDynamic()` fills them in.
     public func discover() -> [RuleResult] {
         let regular = ruleSet.rules.filter { !$0.catchAll }
         let catchAll = ruleSet.rules.filter(\.catchAll)
 
         var results = regular.map { discover(rule: $0) }
 
-        // Те, що вже покрито точнішими правилами, «решті» не віддаємо.
+        // Anything already covered by more specific rules is not handed to the "rest" rule.
         let claimed = results.flatMap { $0.entries.map(\.id) }
         results += catchAll.map { rule in
             var result = discover(rule: rule)
@@ -56,12 +56,12 @@ public final class DiskScanner: Sendable {
             return result
         }
 
-        // Повертаємо у порядку файлу правил.
+        // Return in the order of the rules file.
         let order = Dictionary(uniqueKeysWithValues: ruleSet.rules.enumerated().map { ($1.id, $0) })
         return results.sorted { (order[$0.rule.id] ?? 0) < (order[$1.rule.id] ?? 0) }
     }
 
-    /// Повільніший етап: симулятори (запуск `simctl`), проєкти, резервні копії, програми.
+    /// Slower stage: simulators (runs `simctl`), projects, backups, apps.
     public func discoverDynamic() -> [RuleResult] {
         var results: [RuleResult] = []
         for rule in ruleSet.rules {
@@ -84,7 +84,7 @@ public final class DiskScanner: Sendable {
     }
 
     private func discover(rule: CleanupRule) -> RuleResult {
-        // Правила з provider наповнює discoverDynamic().
+        // Rules with a provider are filled in by discoverDynamic().
         guard rule.provider == nil else { return RuleResult(rule: rule, entries: []) }
 
         var matches: [(url: URL, prefix: String)] = []
@@ -98,14 +98,14 @@ public final class DiskScanner: Sendable {
                     matches.append((match, prefix))
                 case .children:
                     do {
-                        // Будуємо шлях від `match`, а не беремо URL від системи: вона розкриває symlink-и
-                        // (/var → /private/var), і той самий каталог отримав би різні id в різних правилах.
+                        // Build the path from `match` instead of taking the URL from the system: it resolves symlinks
+                        // (/var → /private/var), and the same directory would get different ids in different rules.
                         let names = try FileManager.default.contentsOfDirectory(atPath: match.path)
                         matches.append(contentsOf: names.map { (match.appendingPathComponent($0), prefix) })
                     } catch where FullDiskAccess.isDenied(error) {
                         accessError = L("No access to %@. Full Disk Access is required.", match.lastPathComponent)
                     } catch {
-                        // Не папка або зникла: пропускаємо.
+                        // Not a folder or it disappeared: skip.
                     }
                 }
             }
@@ -131,7 +131,7 @@ public final class DiskScanner: Sendable {
                 companions: companionURLs(for: url, templates: rule.companions, scope: scope))
 
             if rule.ownerFromPrefix, rule.granularity == .selfItem {
-                // `Application Support/Figma/DesktopProfile/v43/Cache` → власник «Figma», решта в підзаголовку.
+                // `Application Support/Figma/DesktopProfile/v43/Cache` → owner "Figma", the rest in the subtitle.
                 let relative = url.path.dropFirst(prefix.count).split(separator: "/").map(String.init)
                 guard let owner = relative.first else { continue }
                 if rule.excludeOwners.contains(where: { PathExpander.matches(name: owner, pattern: $0) }) { continue }
@@ -142,7 +142,7 @@ public final class DiskScanner: Sendable {
             entries.append(entry)
         }
 
-        // Усі кеші однієї програми зводимо в один елемент (Figma: Cache, Code Cache, GPUCache… у v39–v43).
+        // All caches of one app are merged into a single entry (Figma: Cache, Code Cache, GPUCache… in v39–v43).
         if rule.ownerFromPrefix, rule.granularity == .selfItem {
             entries = Dictionary(grouping: entries, by: { $0.ownerName ?? $0.name }).values.map { group in
                 let sorted = group.sorted { $0.id < $1.id }
@@ -170,7 +170,8 @@ public final class DiskScanner: Sendable {
         return RuleResult(rule: rule, entries: entries, accessError: accessError)
     }
 
-    /// Незмінна частина шаблону до першого `*`, `?`, `[` чи `{`: `~/Library/Containers/*/Data` → `<home>/Library/Containers`.
+    /// The fixed part of a pattern before the first `*`, `?`, `[` or `{`:
+    /// `~/Library/Containers/*/Data` → `<home>/Library/Containers`.
     private func wildcardFreePrefix(of pattern: String) -> String {
         let expanded = PathExpander.expandTilde(pattern, home: home)
         var parts: [Substring] = []
@@ -197,7 +198,7 @@ public final class DiskScanner: Sendable {
         url.deletingPathExtension().lastPathComponent
     }
 
-    /// Супутні файли (`{base}.ini`), що реально існують і проходять ті самі перевірки безпеки.
+    /// Companion files (`{base}.ini`) that actually exist and pass the same safety checks.
     private func companionURLs(for url: URL, templates: [String], scope: EntryScope) -> [URL] {
         let base = baseName(of: url)
         let directory = url.deletingLastPathComponent()
@@ -209,9 +210,9 @@ public final class DiskScanner: Sendable {
         }
     }
 
-    // MARK: - Вимірювання
+    // MARK: - Measuring
 
-    /// Повний цикл: знайти елементи, паралельно виміряти розміри, потім шукати файли й дублікати.
+    /// Full cycle: find entries, measure sizes in parallel, then look for files and duplicates.
     public func scan() -> AsyncStream<ScanEvent> {
         AsyncStream { continuation in
             let task = Task.detached(priority: .userInitiated) { [self] in
@@ -222,7 +223,7 @@ public final class DiskScanner: Sendable {
                 let dynamic = discoverDynamic()
                 if !dynamic.isEmpty { continuation.yield(.appended(dynamic)) }
 
-                // Заблоковані «останні версії» не міряємо: їх все одно не можна видаляти.
+                // Locked "latest versions" are not measured: they cannot be deleted anyway.
                 var toMeasure = base.flatMap(\.entries)
                 let replaced = Set(dynamic.map(\.id))
                 toMeasure.removeAll { replaced.contains($0.ruleID) }
@@ -244,7 +245,7 @@ public final class DiskScanner: Sendable {
                     }
                 }
 
-                // Найповільніше наприкінці, щоб решта результатів з'явилась одразу.
+                // The slowest part goes last, so the rest of the results appear right away.
                 if let settings = fileSettings, !Task.isCancelled {
                     let files = FileScanner.results(
                         settings: settings, home: home,
@@ -265,7 +266,7 @@ public final class DiskScanner: Sendable {
         }
     }
 
-    /// Розмір елемента. Для артефактів проєктів «остання зміна» враховує і роботу над самим проєктом.
+    /// Size of an entry. For project artifacts, "last modified" also takes work on the project itself into account.
     static func usage(of entry: Entry, home: URL) -> DiskUsage {
         if let preset = entry.presetUsage { return preset }
         var usage = DiskSize.measure(entry.url)
@@ -274,14 +275,14 @@ public final class DiskScanner: Sendable {
            let activity = ProjectActivity.newest(in: entry.url.deletingLastPathComponent(), home: home) {
             usage.lastModified = max(usage.lastModified ?? .distantPast, activity)
         }
-        // Для програм і резервних копій дата береться з метаданих, а не з файлів усередині.
+        // For apps and backups the date comes from metadata, not from the files inside.
         if let activity = entry.activityDate { usage.lastModified = activity }
         return usage
     }
 
-    // MARK: - Блокування
+    // MARK: - Blocking
 
-    /// Причини блокування на рівні правил (запущені застосунки/процеси). `pgrep` викликається раз на правило.
+    /// Rule-level blocking reasons (running apps/processes). `pgrep` is called once per rule.
     public static func ruleBlocks(for rules: [CleanupRule], snapshot: RunningSnapshot) -> [String: String] {
         var blocks: [String: String] = [:]
         for rule in rules {
@@ -292,12 +293,12 @@ public final class DiskScanner: Sendable {
         return blocks
     }
 
-    /// "3 days" / "3 дн.": українське скорочення не змінюється з числом.
+    /// English "3 days" versus the Ukrainian abbreviation, which does not change with the number.
     private static func dayCount(_ n: Int) -> String {
         Loc.plural(n, en: (one: "\(n) day", other: "\(n) days"), uk: (one: "\(n) дн.", few: "\(n) дн.", many: "\(n) дн."))
     }
 
-    /// Чому саме цей елемент зараз не можна видаляти (або `nil`).
+    /// Why this particular entry cannot be deleted right now (or `nil`).
     public static func blockReason(
         for entry: Entry, rule: CleanupRule, ruleBlock: String?, snapshot: RunningSnapshot, now: Date = Date()
     ) -> String? {
@@ -313,18 +314,18 @@ public final class DiskScanner: Sendable {
         return nil
     }
 
-    /// Рішення «вибирати за замовчуванням чи ні» разом із причиною: щоб у діагностиці було видно логіку.
+    /// The "select by default or not" decision together with its reason, so the logic is visible in diagnostics.
     public struct DefaultDecision: Sendable, Equatable {
         public let selected: Bool
         public let reason: String
     }
 
     public static func defaultDecision(_ entry: Entry, rule: CleanupRule, now: Date = Date()) -> DefaultDecision {
-        // Правила з файлу користувача ніколи не вибираються самі: лише вручну, після перегляду списку.
+        // Rules from the user's file are never selected automatically: only manually, after reviewing the list.
         if rule.isCustom { return DefaultDecision(selected: false, reason: L("custom rule: manual only")) }
-        // Те, що вимагає пароля, ніколи не вибираємо саме: пароль питаємо лише коли користувач сам попросив.
+        // Anything that needs a password is never selected automatically: we ask for the password only on request.
         if rule.requiresAdmin { return DefaultDecision(selected: false, reason: L("administrator password needed: manual only")) }
-        // Особисті файли, бекапи й програми користувач вибирає лише вручну.
+        // Personal files, backups and apps are selected by the user manually only.
         switch entry.scope {
         case .userFile: return DefaultDecision(selected: false, reason: L("personal files: manual only"))
         case .backup: return DefaultDecision(selected: false, reason: L("backup: manual only"))
@@ -345,7 +346,7 @@ public final class DiskScanner: Sendable {
             : DefaultDecision(selected: false, reason: L("careful rule: manual only"))
     }
 
-    /// Чи вибирати елемент за замовчуванням після скану.
+    /// Whether to select the entry by default after a scan.
     public static func isSelectedByDefault(_ entry: Entry, rule: CleanupRule, now: Date = Date()) -> Bool {
         defaultDecision(entry, rule: rule, now: now).selected
     }

@@ -184,12 +184,12 @@ final class ProjectScannerTests: CleanerTestCase {
         try setModified(home.path("Projects/app/src"), daysAgo: 100)
         try setModified(project, daysAgo: 100)
 
-        // Свіжа установка залежностей не робить проєкт «активним».
+        // A fresh install of dependencies does not make the project "active".
         try setModified(installed, daysAgo: 1)
         var age = try XCTUnwrap(ProjectActivity.newest(in: project, home: home.url)).timeIntervalSinceNow / -86_400
         XCTAssertGreaterThan(age, 99)
 
-        // А правка коду робить.
+        // A code edit does.
         try setModified(source, daysAgo: 2)
         age = try XCTUnwrap(ProjectActivity.newest(in: project, home: home.url)).timeIntervalSinceNow / -86_400
         XCTAssertLessThan(age, 3)

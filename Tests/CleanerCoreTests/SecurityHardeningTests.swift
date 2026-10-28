@@ -1,10 +1,10 @@
 import XCTest
 @testable import CleanerCore
 
-/// Регресійні тести за результатами незалежного аудиту безпеки.
+/// Regression tests based on the results of an independent security audit.
 final class PathGuardHardeningTests: CleanerTestCase {
     func testDeniedAndProtectedPathsAreCaseInsensitive() throws {
-        // Файлова система macOS не розрізняє регістр: `~/documents` — це `~/Documents`.
+        // The macOS file system is case-insensitive: `~/documents` is `~/Documents`.
         let home = try FakeHome()
         let guardian = PathGuard(home: home.url)
         for relative in [
@@ -13,15 +13,15 @@ final class PathGuardHardeningTests: CleanerTestCase {
         ] {
             XCTAssertThrowsError(try guardian.validate(home.path(relative)), relative)
         }
-        // Звичайні дозволені шляхи й виняток для Illustrator працюють як раніше.
+        // Ordinary allowed paths and the Illustrator exception work as before.
         XCTAssertNoThrow(try guardian.validate(home.path("Library/Caches/com.foo/Cache")))
         XCTAssertNoThrow(try guardian.validate(home.path("Library/Preferences/Adobe Illustrator 27 Settings")))
-        // Виняток чутливий до регістру: інший регістр лишається забороненим.
+        // The exception is case-sensitive: other casing stays forbidden.
         XCTAssertThrowsError(try guardian.validate(home.path("library/preferences/adobe illustrator 27 settings")))
     }
 
     func testSymlinkIntoAProtectedFolderDoesNotLaunderThePath() throws {
-        // `Library/Caches/evil -> ~/Documents/Work`: шлях `evil/Cache` лежить у Caches, а насправді в Documents.
+        // `Library/Caches/evil -> ~/Documents/Work`: path `evil/Cache` lies in Caches, but is really in Documents.
         let home = try FakeHome()
         try home.makeFile("Documents/Work/Cache/file.bin")
         try FileManager.default.createDirectory(at: home.path("Library/Caches"), withIntermediateDirectories: true)
@@ -31,7 +31,7 @@ final class PathGuardHardeningTests: CleanerTestCase {
         let guardian = PathGuard(home: home.url)
         XCTAssertThrowsError(try guardian.validate(home.path("Library/Caches/evil/Cache")))
         XCTAssertNoThrow(try guardian.validate(home.path("Library/Caches/real/Cache")))
-        // Сам symlink видаляється як посилання, тож його можна прибрати.
+        // The symlink itself is removed as a link, so it is fine to remove it.
         XCTAssertNoThrow(try guardian.validate(home.path("Library/Caches/evil")))
     }
 
@@ -93,11 +93,11 @@ final class PrivilegedBatchHardeningTests: CleanerTestCase {
         let fake = FakeRunner()
         let runner = AppleScriptPrivilegedRunner(runner: fake, home: home.url)
 
-        // Дозволене проходить і доходить до osascript.
+        // Allowed paths pass and reach osascript.
         XCTAssertEqual(runner.removeItems(["/Library/Caches/a", home.path("Applications/Foo.app").path], prompt: "p"), .finished)
         XCTAssertEqual(fake.calls.count, 1)
 
-        // Усе інше відхиляється ДО запуску команди (навіть якщо поруч є дозволене).
+        // Everything else is rejected BEFORE the command runs (even if an allowed path is alongside).
         for bad in [
             "/etc/hosts", "/Users/someone/Documents", "/Library/Caches", "/Library/Caches/../../etc/passwd",
             "/Library/Caches/a/../b", "Library/Caches/a", "/Applications/Nope.app", home.path("Applications/notes.txt").path,
@@ -138,7 +138,7 @@ final class DuplicateAndLeftoverHardeningTests: CleanerTestCase {
         let duplicates = FileScanner.duplicatesRule, media = FileCategory.other.rule
         let trasher = FakeTrasher(directory: home.path("tr"))
 
-        // Користувач вибрав і оригінал (він же в «Великих файлах»), і його копію.
+        // The user selected both the original (which is also in "Large files") and its copy.
         let report = makeEngine(home, fileRoots: [home.path("Documents"), home.path("Downloads")], trasher: trasher).clean(
             entries: [
                 fileEntry(home, "Documents/original.bin", rule: media),
@@ -160,15 +160,15 @@ final class DuplicateAndLeftoverHardeningTests: CleanerTestCase {
             Entry(ruleID: "apps", url: app, scope: .application, action: .trashPaths,
                   companions: [home.path(companion)], ownerTokens: tokens)
         }
-        // Назва програми збігається з системною текою: раніше це дозволяло «залишок» `Application Support/Mail`.
+        // The app name matches a system folder: this used to allow a "leftover" `Application Support/Mail`.
         for name in ["Mail", "AddressBook", "MobileSync", "CloudDocs", "Safari", "com.apple.notes", "group.com.apple.notes"] {
             XCTAssertThrowsError(
                 try guardian.validate(entry(companion: "Library/Application Support/\(name)", tokens: ["com.vendor.mailer", name, "Mailer"])), name)
         }
-        // Справжній залишок проходить.
+        // A genuine leftover passes.
         XCTAssertNoThrow(try guardian.validate(entry(companion: "Library/Application Support/Mailer", tokens: ["com.vendor.mailer", "Mailer"])))
         XCTAssertNoThrow(try guardian.validate(entry(companion: "Library/Caches/com.vendor.mailer", tokens: ["com.vendor.mailer", "Mailer"])))
-        // Бандл Apple з іншим регістром теж захищений.
+        // An Apple bundle with different casing is protected too.
         XCTAssertTrue(ApplicationGuard.isProtected(bundleID: "COM.APPLE.Safari"))
     }
 

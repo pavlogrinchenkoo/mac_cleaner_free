@@ -60,7 +60,7 @@ final class ReportTransparencyTests: CleanerTestCase {
 
     func testAutoManualRemovedAndBlockedAreAllDistinguished() throws {
         let home = try FakeHome()
-        let cache = try makeRule(id: "cache", paths: ["~/a"])    // безпечне: вибирається саме
+        let cache = try makeRule(id: "cache", paths: ["~/a"])    // safe: gets selected on its own
         let files = try makeRule(id: "files", paths: ["~/b"], extra: "\"moveToTrash\":true")
         let autoEntry = entry(home, "auto.bin", rule: "cache", bytes: 500_000_000)
         let removed = entry(home, "removed.bin", rule: "cache", bytes: 300_000_000)
@@ -73,7 +73,7 @@ final class ReportTransparencyTests: CleanerTestCase {
             results: [RuleResult(rule: cache, entries: [autoEntry, removed, blocked]), RuleResult(rule: files, entries: [manualOn, untouched])],
             selected: [autoEntry.id, manualOn.id], manual: [removed.id, manualOn.id])
 
-        // Підсумок розрізняє походження вибору.
+        // The summary distinguishes where a selection came from.
         XCTAssertTrue(text.contains("Вибрано АВТОМАТИЧНО (за замовчуванням): 1 елементів, 500 МБ"), text)
         XCTAssertTrue(text.contains("Додано ВРУЧНУ користувачем: 1 елементів, 100 МБ"))
         XCTAssertTrue(text.contains("Знято ВРУЧНУ (програма вибрала б сама): 1 елементів, 300 МБ"))
@@ -83,7 +83,7 @@ final class ReportTransparencyTests: CleanerTestCase {
         XCTAssertTrue(text.contains("Застосунок запущений: 1 елементів, 200 МБ"))
         XCTAssertTrue(text.contains("РАЗОМ ВИБРАНО ЗАРАЗ: 2 елементів"))
 
-        // Кожен рядок має свою позначку.
+        // Each line has its own marker.
         XCTAssertTrue(text.contains("[✓ авто] 500 МБ") && text.contains("auto.bin"))
         XCTAssertTrue(text.contains("[✗ ЗНЯТО ВРУЧНУ] 300 МБ") && text.contains("removed.bin"))
         XCTAssertTrue(text.contains("[🔒] 200 МБ") && text.contains("busy.bin"))
@@ -104,7 +104,7 @@ final class ReportTransparencyTests: CleanerTestCase {
     func testAgeBasedRuleShowsPerEntryReason() throws {
         let home = try FakeHome()
         let rule = try makeRule(id: "proj", paths: ["~/p"], extra: "\"autoSelectOlderThanDays\":30")
-        let fresh = entry(home, "fresh", rule: "proj", bytes: 70_000_000)  // 3 дні тому
+        let fresh = entry(home, "fresh", rule: "proj", bytes: 70_000_000)  // 3 days ago
         let text = render(home, results: [RuleResult(rule: rule, entries: [fresh])], selected: [], manual: [])
         XCTAssertTrue(text.contains("автовибір: лише те, що не змінювалось 30+ днів"))
         XCTAssertTrue(text.contains("активність 3 дн. тому (потрібно від 30)"), text)
@@ -206,11 +206,11 @@ final class DeepDrillDownTests: CleanerTestCase {
     }
 }
 
-/// Наскрізна перевірка: від скану до «вибрано за замовчуванням». Особисте не може вибратись саме.
+/// End-to-end check: from the scan to "selected by default". Personal data cannot get selected on its own.
 final class EndToEndDefaultSelectionTests: CleanerTestCase {
     func testNothingPersonalIsSelectedAutomaticallyAfterAFullScan() async throws {
         let home = try FakeHome()
-        // Інсталятори, великі файли, дублікати, бекап iPhone, програма, кеш Chrome-подібного вигляду.
+        // Installers, large files, duplicates, an iPhone backup, an app, a Chrome-like cache.
         try home.makeFile("Downloads/Setup.dmg", bytes: 200_000)
         try home.makeFile("Downloads/video.mov", bytes: 400_000)
         try home.makeFile("Documents/work.psd", bytes: 500_000)
@@ -275,7 +275,7 @@ final class SelectionClassificationTests: CleanerTestCase {
         let home = try FakeHome()
         let cache = try makeRule(id: "cache", paths: ["~/a"])
         let e = entry(home, "cache.bin", rule: "cache")
-        // Користувач вимкнув і знову ввімкнув: id у «ручних», але стан як за замовчуванням.
+        // The user switched it off and on again: the id is in the "manual" set, but the state is the default one.
         let text = render(home, [RuleResult(rule: cache, entries: [e])], selected: [e.id], manual: [e.id])
         XCTAssertEqual(lines(text, marker: "[✓ авто]").count, 1)
         XCTAssertEqual(lines(text, marker: "[✓ ВРУЧНУ]").count, 0)
@@ -286,7 +286,7 @@ final class SelectionClassificationTests: CleanerTestCase {
     func testSelectionWithoutAnyReasonIsFlaggedAsProgramError() throws {
         let home = try FakeHome()
         let files = try makeRule(id: "files", paths: ["~/b"], extra: "\"moveToTrash\":true")
-        let sneaky = entry(home, "Setup.dmg", rule: "files", scope: .userFile)   // особисте: автовибору немає, кліку теж
+        let sneaky = entry(home, "Setup.dmg", rule: "files", scope: .userFile)   // personal: no auto-select, no click
         let text = render(home, [RuleResult(rule: files, entries: [sneaky])], selected: [sneaky.id], manual: [])
         XCTAssertEqual(lines(text, marker: "[✓ ???]").count, 1, text)
         XCTAssertTrue(text.contains("⚠︎ Вибрано з НЕВІДОМОЇ причини"))

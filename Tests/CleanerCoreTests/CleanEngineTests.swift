@@ -91,7 +91,7 @@ final class CleanEngineTests: CleanerTestCase {
         try outside.makeFile("victim.txt")
         let rule = try makeRule(paths: ["~/Library/Caches"])
 
-        // Навіть якщо хтось підсунув «елемент» на Documents або поза домашню папку, рушій має відмовити.
+        // Even if someone slips in an "entry" for Documents or outside the home folder, the engine must refuse.
         var forgedDocs = Entry(ruleID: rule.id, url: home.path("Documents/thesis.txt"))
         forgedDocs.measurement = DiskUsage(bytes: 1, fileCount: 1, lastModified: nil, hadErrors: false)
         var forgedOutside = Entry(ruleID: rule.id, url: outside.path("victim.txt"))

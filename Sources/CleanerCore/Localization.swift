@@ -85,7 +85,7 @@ public enum Loc {
 
     // MARK: - Numbers and sizes
 
-    /// Disk size, e.g. `18.26 GB` / `18,26 ГБ`. Decimal (1000-based) like Finder; zero reads as `0 KB`.
+    /// Disk size, e.g. `18.26 GB`; Ukrainian uses a decimal comma and localized units (`18,26`).
     public static func bytes(_ value: Int64, language: Language = Loc.current) -> String {
         let units = language == .uk ? ["Б", "КБ", "МБ", "ГБ", "ТБ"] : ["B", "KB", "MB", "GB", "TB"]
         if value <= 0 { return "0 \(units[1])" }
@@ -116,7 +116,7 @@ public enum Loc {
         return "\(text) \(units[unit])"
     }
 
-    /// "1 item", "5 items" / "1 елемент", "2 елементи", "5 елементів".
+    /// "1 item", "5 items"; Ukrainian has three plural forms (one, few, many), e.g. for 1, 2 and 5.
     public static func itemCount(_ n: Int, language: Language = Loc.current) -> String {
         switch language {
         case .en:

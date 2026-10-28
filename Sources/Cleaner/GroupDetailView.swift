@@ -174,7 +174,7 @@ private struct EntryRow: View {
     let entry: Entry
     let fraction: Double
 
-    /// «node_modules · активність 3 міс. тому», «iOS 17.5 · запускався 2 міс. тому».
+    /// "node_modules · activity 3 mo. ago", "iOS 17.5 · last launched 2 mo. ago".
     private var detailLine: String? {
         var parts: [String] = []
         if let subtitle = entry.subtitle { parts.append(subtitle) }
@@ -202,7 +202,7 @@ private struct EntryRow: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-                // Підзаголовок лишається й у заблокованих рядках: за ним відрізняють однойменні програми.
+                // The subtitle stays in blocked rows too: it is what tells apart apps with the same name.
                 if let line = detailLine {
                     Text(line)
                         .font(.caption)

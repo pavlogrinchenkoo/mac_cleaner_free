@@ -1,17 +1,17 @@
 import Darwin
 import Foundation
 
-// MARK: - Карта зайнятого місця
+// MARK: - Disk usage map
 
 public struct SurveyItem: Sendable {
     public let name: String
     public let bytes: Int64
     public let lastModified: Date?
-    /// Розмір неповний (не встиг дорахувати): справжній більший.
+    /// The size is incomplete (did not finish measuring): the real one is larger.
     public let incomplete: Bool
-    /// Пояснення (наприклад, чому не міряв).
+    /// An explanation (for example, why it was not measured).
     public let note: String?
-    /// Найбільший вміст цього елемента (лише для дуже великих тек): щоб бачити, що всередині.
+    /// The largest contents of this item (only for very large folders): to see what is inside.
     public let children: [SurveyItem]
 
     public init(
@@ -30,24 +30,24 @@ public struct SurveyItem: Sendable {
 public struct SurveySection: Sendable {
     public let title: String
     public let path: String
-    /// Найбільші елементи, від більшого.
+    /// The largest items, biggest first.
     public let items: [SurveyItem]
-    /// Скільки елементів усього і скільки місця займають ті, що не потрапили в `items`.
+    /// How many items there are in total and how much space those that did not make it into `items` take.
     public let totalCount: Int
     public let restBytes: Int64
-    /// Тека не прочиталась (наприклад, немає Full Disk Access).
+    /// The folder could not be read (for example, there is no Full Disk Access).
     public let error: String?
 
     public var totalBytes: Int64 { items.reduce(0) { $0 + $1.bytes } + restBytes }
 }
 
-/// Тека, вміст якої розкладаємо за розміром.
+/// A folder whose contents we break down by size.
 public struct SurveyDirectory: Sendable {
     public let title: String
     public let url: URL
-    /// Дочірні шляхи, які пропускаємо (вони розглядаються окремо).
+    /// Child paths that we skip (they are handled separately).
     public let skip: Set<String>
-    /// Дочірні шляхи, які показуємо, але не міряємо, з поясненням.
+    /// Child paths that we show but do not measure, with an explanation.
     public let unmeasured: [String: String]
 
     public init(title: String, url: URL, skip: Set<String> = [], unmeasured: [String: String] = [:]) {
@@ -58,18 +58,19 @@ public struct SurveyDirectory: Sendable {
     }
 }
 
-/// Розмір вмісту ключових папок: щоб побачити, що саме займає місце на чужому маці й написати правила.
-/// Має жорсткі ліміти часу: діагностика ніколи не має «зависати».
+/// The size of the contents of key folders: to see what exactly takes up space on someone else's Mac and write rules.
+/// Has hard time limits: diagnostics must never "hang".
 public enum DiskSurvey {
     public static let topPerSection = 40
     public static let defaultItemBudget: TimeInterval = 20
     public static let defaultTotalBudget: TimeInterval = 150
-    /// Теки більші за це розкриваємо ще на рівень углиб.
+    /// Folders larger than this are expanded one more level down.
     public static let defaultDrillThreshold: Int64 = 1_000_000_000
     public static let drillItemsPerSection = 6
     public static let drillChildrenPerItem = 8
     public static let defaultDrillBudget: TimeInterval = 60
-    /// Скільки рівнів углиб зазирати (1 = лише вміст великої теки, 2 = ще й вміст її найбільших дітей).
+    /// How many levels deep to look: the contents of a large folder (level 1), of its largest children
+    /// (level 2), and so on down to this depth.
     public static let drillDepth = 3
 
     public static func directories(home: URL) -> [SurveyDirectory] {
@@ -89,7 +90,7 @@ public enum DiskSurvey {
             ("/Applications", URL(fileURLWithPath: "/Applications")),
             ("/Library", URL(fileURLWithPath: "/Library")),
         ]
-        // «Решта» не повторює вже розгорнуті теки.
+        // "The rest" does not repeat the folders that are already expanded.
         let expanded = Set(main.map { $0.1.standardizedFileURL.path })
         let cloud = [
             library.appendingPathComponent("Mobile Documents").path: L("iCloud Drive: contents not measured (reading may hang)"),
@@ -109,7 +110,7 @@ public enum DiskSurvey {
         private var done = 0
         init(count: Int) { results = Array(repeating: [], count: count) }
 
-        /// Повертає кількість завершених або `nil`, якщо збір уже закрито.
+        /// Returns the number of finished jobs, or `nil` if collection is already closed.
         func add(_ item: SurveyItem, section: Int, job: Int) -> Int? {
             lock.lock(); defer { lock.unlock() }
             guard !sealed else { return nil }
@@ -170,8 +171,8 @@ public enum DiskSurvey {
         let slots = DispatchSemaphore(value: 6)
         let totalDeadline = Date().addingTimeInterval(totalBudget)
 
-        // Власний пул замість `concurrentPerform`: так можна припинити чекання, навіть якщо потік застряг у ядрі
-        // (наприклад, на файловому провайдері iCloud).
+        // A custom pool instead of `concurrentPerform`: this way we can stop waiting even if a thread is stuck in the
+        // kernel (for example, on the iCloud file provider).
         var next = 0
         while next < total {
             if isCancelled() || Date() >= totalDeadline { break }
@@ -194,22 +195,22 @@ public enum DiskSurvey {
                 }
             }
         }
-        // Чекаємо на завершення, але не довше за залишок бюджету (+ невеликий запас на добіг).
+        // Wait for completion, but no longer than the remaining budget (+ a small margin to let work wind down).
         _ = group.wait(timeout: .now() + max(0, totalDeadline.timeIntervalSinceNow) + 3)
         let finished = collector.seal()
 
-        // Те, що не встигли чи перервали, лишаємо у звіті з позначкою, а не губимо.
+        // Whatever did not finish or was interrupted stays in the report with a mark instead of being lost.
         var results = collector.snapshot()
         for (index, job) in allJobs.enumerated() where !finished.contains(index) {
             results[job.section].append(SurveyItem(name: job.name, bytes: 0, lastModified: nil, incomplete: true, note: L("did not finish (interrupted or hung)")))
         }
-        // Друга фаза: що всередині найбільших тек (наприклад, чому «Preferences» важить 20 ГБ).
+        // Second phase: what is inside the largest folders (for example, why "Preferences" weighs 20 GB).
         var children: [String: [SurveyItem]] = [:]
         if drillThreshold > 0, !isCancelled() {
             struct Drill: Sendable { let key: String; let url: URL }
             var targets: [Drill] = []
             for (index, directory) in directories.enumerated() {
-                // Усередині .app (Contents) заглядати нема сенсу.
+                // There is no point looking inside an .app (Contents).
                 let big = results[index].filter { $0.bytes >= drillThreshold && $0.note == nil && !$0.incomplete && !$0.name.hasSuffix(".app") }
                     .sorted { $0.bytes > $1.bytes }.prefix(drillItemsPerSection)
                 for item in big {
@@ -218,7 +219,7 @@ public enum DiskSurvey {
             }
             let perTargetBudget = drillBudget / Double(max(targets.count, 1)) + 5
 
-            /// Вміст теки з розкриттям найбільших дітей, поки не вичерпано глибину.
+            /// The contents of a folder, expanding the largest children until the depth is exhausted.
             func expand(_ url: URL, depth: Int) -> [SurveyItem] {
                 guard !isCancelled(), let names = try? FileManager.default.contentsOfDirectory(atPath: url.path) else { return [] }
                 let urls = names.map { url.appendingPathComponent($0) }.filter { !DiskSize.isCloudProviderDirectory($0.path) }
@@ -229,7 +230,7 @@ public enum DiskSurvey {
                 }.sorted { $0.bytes > $1.bytes }
                 items = Array(items.prefix(drillChildrenPerItem))
                 guard depth < drillDepth else { return items }
-                // Найбільші діти (від порога) розкриваємо ще на рівень.
+                // The largest children (above the threshold) are expanded one more level.
                 var expanded = 0
                 for index in items.indices where items[index].bytes >= drillThreshold && !items[index].incomplete
                     && !items[index].name.hasSuffix(".app") && expanded < 5 {
@@ -255,7 +256,8 @@ public enum DiskSurvey {
                 return SurveyItem(name: item.name, bytes: item.bytes, lastModified: item.lastModified,
                                   incomplete: item.incomplete, note: item.note, children: inner)
             }
-            // Найбільші + усе з поясненням чи недораховане (воно має нульовий розмір і інакше випало б із топу).
+            // The largest ones + everything with a note or not fully measured (it has zero size and would otherwise
+            // drop out of the top).
             let beyond = items.dropFirst(topPerSection)
             let pinned = beyond.filter { $0.note != nil || $0.incomplete }
             let top = Array(items.prefix(topPerSection)) + pinned
@@ -266,7 +268,7 @@ public enum DiskSurvey {
         }
     }
 
-    /// Міряє кілька шляхів у власному пулі з бюджетом часу. `nil` у результаті = не встиг.
+    /// Measures several paths in a custom pool with a time budget. `nil` in the result = did not finish.
     private static func measureAll(
         _ urls: [URL], itemBudget: TimeInterval, totalBudget: TimeInterval, isCancelled: @Sendable () -> Bool
     ) -> [DiskUsage?] {
@@ -301,7 +303,7 @@ public enum DiskSurvey {
     }
 }
 
-// MARK: - Звіт
+// MARK: - Report
 
 public struct DiagnosticInput: Sendable {
     public var appVersion: String
@@ -316,7 +318,7 @@ public struct DiagnosticInput: Sendable {
     public var groups: [CleanupGroup]
     public var results: [RuleResult]
     public var selectedIDs: Set<String>
-    /// Елементи, які користувач чіпав руками (вибрав або зняв): щоб відрізнити від автоматичного вибору.
+    /// Items the user touched by hand (selected or unselected): to tell them apart from the automatic selection.
     public var manualIDs: Set<String>
     public var ruleBlocks: [String: String]
     public var blockReason: @Sendable (Entry, CleanupRule) -> String?
@@ -383,7 +385,7 @@ public enum DiagnosticMarkers {
 }
 
 public enum DiagnosticReport {
-    /// Встановлені програми (до двох рівнів вглиб: Adobe кладе програми в підпапки) без розкриття вмісту.
+    /// Installed apps (up to two levels deep: Adobe puts apps in subfolders) without expanding their contents.
     public static func installedApps(roots: [URL]) -> [DiagnosticApp] {
         var apps: [DiagnosticApp] = []
         for root in roots {
@@ -416,7 +418,7 @@ public enum DiagnosticReport {
         return "\(dryRun ? "dryrun" : "scan")-\(stamp.string(from: date)).txt"
     }
 
-    /// Зберігає звіт поруч з іншими логами. Повертає шлях до файлу.
+    /// Saves the report next to the other logs. Returns the path to the file.
     public static func write(_ text: String, home: URL, date: Date = Date(), dryRun: Bool = true) -> URL? {
         let directory = home.appendingPathComponent("Library/Application Support/Cleaner/logs")
         let url = directory.appendingPathComponent(fileName(for: date, dryRun: dryRun))
@@ -430,9 +432,9 @@ public enum DiagnosticReport {
 
     private static let maxEntriesPerRule = 600
 
-    /// Останній прохід по готовому звіту: прибирає те, що ідентифікує людину чи її пристрої, навіть якщо воно
-    /// потрапило в текст не через `short()`: ім'я користувача в `/Users/<ім'я>/…` та ідентифікатори пристроїв iPhone/iPad
-    /// (UDID резервних копій: `00008110-001A2B3C4D5E6F78` або 40 hex-символів).
+    /// The last pass over the finished report: removes anything that identifies a person or their devices, even if it
+    /// got into the text not through `short()`: the user name in `/Users/<name>/…` and iPhone/iPad device identifiers
+    /// (backup UDIDs: `00008110-001A2B3C4D5E6F78` or 40 hex characters).
     static func redactPersonalIdentifiers(_ text: String) -> String {
         let rules: [(pattern: String, template: String)] = [
             (#"/Users/(?!Shared(?:/|\s|$))[^/\s«»]+"#, "/Users/<user>"),
@@ -479,7 +481,7 @@ public enum DiagnosticReport {
                          size(files.minLargeBytes), size(files.minDuplicateBytes), size(files.minInstallerBytes)))
         }
 
-        // --- Класифікація кожного елемента ---
+        // --- Classification of each item ---
         enum Status { case blocked(String), auto, manualOn, manualOff, notSelected, unexplained }
         struct Row { let entry: Entry; let rule: CleanupRule; let status: Status; let decision: DiskScanner.DefaultDecision }
         var rows: [Row] = []
@@ -488,12 +490,14 @@ public enum DiagnosticReport {
                 let decision = DiskScanner.defaultDecision(entry, rule: result.rule, now: input.generatedAt)
                 let manual = input.manualIDs.contains(entry.id)
                 let selected = input.selectedIDs.contains(entry.id)
-                // Клас визначає, чим стан ВІДРІЗНЯЄТЬСЯ від автоматичного: клік туди й назад нічого не змінює.
+                // The class captures how the state DIFFERS from the automatic one: a click there and back changes
+                // nothing.
                 let status: Status
                 if let reason = input.blockReason(entry, result.rule) {
                     status = .blocked(reason)
                 } else if selected {
-                    // Вибрано, хоча програма сама б не вибрала: має бути слід кліку. Якщо його немає, це помилка.
+                    // Selected although the app would not have selected it by itself: there must be a trace of a click.
+                    // If there is none, it is a bug.
                     status = decision.selected ? .auto : (manual ? .manualOn : .unexplained)
                 } else {
                     status = decision.selected && manual ? .manualOff : .notSelected
@@ -515,7 +519,7 @@ public enum DiagnosticReport {
         let activeTrash = active.filter { $0.entry.action == .trashPaths }
         let activeDelete = active.filter { $0.entry.action != .trashPaths }
 
-        // --- Підсумок ---
+        // --- Summary ---
         out.append("")
         out.append(DiagnosticMarkers.summaryHeader)
         out.append(L("Found %ld item(s) (%@) in %ld rule(s).", rows.count, size(sum(rows)), input.results.filter { !$0.entries.isEmpty }.count))
@@ -554,12 +558,12 @@ public enum DiagnosticReport {
             }
         }
 
-        // --- Знайдене по групах ---
+        // --- Findings by group ---
         let rowsByEntry = Dictionary(rows.map { ($0.entry.id, $0) }, uniquingKeysWith: { first, _ in first })
         out.append("")
         out.append(L("== FOUND (EVERYTHING the app saw) =="))
         out.append(L("Legend:"))
-        // Пояснення починаються з однієї колонки; емодзі займає два знаки.
+        // The explanations start at the same column; an emoji takes two characters.
         func legend(_ marker: String, _ meaning: String) {
             let width = marker.reduce(0) { $0 + (($1.unicodeScalars.first?.value ?? 0) >= 0x1F000 ? 2 : 1) }
             out.append("  " + marker + String(repeating: " ", count: max(1, 20 - width)) + meaning)
@@ -611,10 +615,11 @@ public enum DiagnosticReport {
                     case .manualOff: mark = DiagnosticMarkers.manualOff
                     case .unexplained: mark = DiagnosticMarkers.unexplained
                     case .notSelected: mark = DiagnosticMarkers.notSelected
-                        // Для правил із порогом давності причина різна в кожного елемента.
+                        // For rules with an age threshold the reason is different for each item.
                         if rule.autoSelectOlderThanDays != nil { why = row.decision.reason }
                     }
-                    // Резервну копію iPhone не називаємо ні іменем пристрою, ні його UDID (теку): це ідентифікує людину.
+                    // An iPhone backup is named neither by the device name nor by its UDID (the folder): this
+                    // identifies a person.
                     let isBackup = entry.scope == .backup
                     let shownPath = isBackup ? short(entry.url.deletingLastPathComponent().path) + "/<backup>" : short(entry.url.path)
                     var line = "  \(mark) \(size(entry.bytes))  \(days(entry.measurement?.lastModified))  \(shownPath)"
@@ -631,14 +636,14 @@ public enum DiagnosticReport {
             }
         }
 
-        // --- Програми ---
+        // --- Apps ---
         out.append("")
         out.append(DiagnosticMarkers.installedAppsHeader(count: input.apps.count))
         for app in input.apps {
             out.append("  \(short(app.path))  \(app.bundleID)  \(app.version)")
         }
 
-        // --- Карта місця ---
+        // --- Disk usage map ---
         out.append("")
         out.append(DiagnosticMarkers.surveyHeader)
         out.append(L("Largest items in key folders (to find what else can be cleaned)."))
@@ -670,7 +675,7 @@ public enum DiagnosticReport {
     }
 }
 
-/// Дані про систему для шапки звіту.
+/// System details for the report header.
 public enum SystemDescription {
     public static var macOSVersion: String {
         let v = ProcessInfo.processInfo.operatingSystemVersion

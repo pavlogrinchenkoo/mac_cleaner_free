@@ -1,15 +1,15 @@
 #!/bin/bash
-# Збирає build/Cleaner.dmg (і копію releases/Cleaner-<версія>.dmg), який можна передати другу.
-# Використання: scripts/make-dmg.sh [--no-build]
-#   --no-build  не перезбирати Cleaner.app, а запакувати наявний build/Cleaner.app
-#               (корисно, щоб ad-hoc збірка не скидала Full Disk Access, коли код не змінювався)
+# Builds build/Cleaner.dmg (and a copy releases/Cleaner-<version>.dmg) that can be handed to a friend.
+# Usage: scripts/make-dmg.sh [--no-build]
+#   --no-build  do not rebuild Cleaner.app, just package the existing build/Cleaner.app
+#               (useful so an ad-hoc build does not reset Full Disk Access when the code has not changed)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ "${1:-}" != "--no-build" ]; then
     scripts/build-app.sh release
 elif [ ! -d build/Cleaner.app ]; then
-    echo "Немає build/Cleaner.app: запусти без --no-build" >&2
+    echo "build/Cleaner.app not found: run without --no-build" >&2
     exit 1
 fi
 
@@ -19,7 +19,7 @@ mkdir -p "$STAGE"
 cp -R build/Cleaner.app "$STAGE/Cleaner.app"
 ln -s /Applications "$STAGE/Applications"
 
-# Інструкція англійською: DMG потрапляє до користувачів з GitHub Releases.
+# The instructions are in English: the DMG reaches users from GitHub Releases.
 cat > "$STAGE/How to open.txt" <<'TXT'
 CLEANER: HOW TO INSTALL AND OPEN
 
@@ -65,8 +65,8 @@ TXT
 hdiutil create -volname "Cleaner" -srcfolder "$STAGE" -ov -format UDZO build/Cleaner.dmg >/dev/null
 rm -rf "$STAGE"
 
-# Копія з номером версії в releases/ (її build/ не чіпає), щоб кожен випуск лишався окремо.
+# A copy with the version number in releases/ (build/ does not touch it), so every release is kept separately.
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/Cleaner.app/Contents/Info.plist)"
 mkdir -p releases
 cp build/Cleaner.dmg "releases/Cleaner-$VERSION.dmg"
-echo "Готово: build/Cleaner.dmg ($(du -h build/Cleaner.dmg | cut -f1)), копія: releases/Cleaner-$VERSION.dmg"
+echo "Done: build/Cleaner.dmg ($(du -h build/Cleaner.dmg | cut -f1)), copy: releases/Cleaner-$VERSION.dmg"

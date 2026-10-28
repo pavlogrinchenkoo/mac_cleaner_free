@@ -1,6 +1,6 @@
 import Foundation
 
-/// Видалення в системних папках (потребує пароля адміна). Лише короткий список коренів.
+/// Deletion inside system folders (needs the administrator password). Only a short list of roots.
 public struct SystemPathGuard: Sendable {
     public static let defaultRoots = ["/Library/Caches", "/Library/Logs"]
 
@@ -19,7 +19,7 @@ public struct SystemPathGuard: Sendable {
         guard !relative.isEmpty, !relative.split(separator: "/").contains(where: { $0 == ".." || $0 == "." }) else {
             throw GuardError.invalidName(path)
         }
-        // Батьківська папка після розкриття symlink-ів не має вилазити за корінь.
+        // After resolving symlinks, the parent folder must not escape the root.
         let realRoot = URL(fileURLWithPath: root).resolvingSymlinksInPath().path
         let realParent = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath().path
         guard realParent == realRoot || realParent.hasPrefix(realRoot + "/") else {
@@ -28,11 +28,11 @@ public struct SystemPathGuard: Sendable {
     }
 }
 
-/// Видалення артефактів проєктів (node_modules, build, Pods…). Це єдине місце, де дозволено
-/// чіпати `~/Documents` і подібне, і лише в папках, які користувач сам додав як «папки проєктів».
+/// Deletion of project artifacts (node_modules, build, Pods…). This is the only place where touching
+/// `~/Documents` and the like is allowed, and only inside folders the user added themselves as "project folders".
 public struct ArtifactGuard: Sendable {
     public let home: URL
-    /// Лише валідні корені.
+    /// Valid roots only.
     public let roots: [URL]
 
     public init(home: URL, roots: [URL]) {
@@ -41,14 +41,14 @@ public struct ArtifactGuard: Sendable {
         self.roots = roots.map(\.standardizedFileURL).filter { Self.isValidRoot($0, home: home) }
     }
 
-    /// Корінь має бути всередині домашньої папки, але не сама вона, не Library і не службові папки.
+    /// A root must be inside the home folder, but not the home folder itself, not Library and not special folders.
     public static func isValidRoot(_ url: URL, home: URL) -> Bool {
         let homePath = home.standardizedFileURL.path
         let path = url.standardizedFileURL.path
         guard path.hasPrefix(homePath + "/") else { return false }
         let relative = path.dropFirst(homePath.count + 1)
         guard let first = relative.split(separator: "/").first else { return false }
-        // Без урахування регістру: `~/library` і `~/Library` — та сама тека.
+        // Case-insensitive: `~/library` and `~/Library` are the same folder.
         let top = PathGuard.fold(String(first))
         return !top.hasPrefix(".") && top != "library" && top != "applications"
     }
@@ -64,7 +64,8 @@ public struct ArtifactGuard: Sendable {
         }
 
         let parent = std.deletingLastPathComponent()
-        // Між коренем і артефактом не має бути іншого артефакту: вкладені (node_modules/x/node_modules) не чіпаємо.
+        // There must be no other artifact between the root and the artifact: nested ones (node_modules/x/node_modules)
+        // are left alone.
         let between = parent.path.dropFirst(root.path.count).split(separator: "/")
         if between.contains(where: { ArtifactKind.isArtifactName(String($0)) }) {
             throw GuardError.nestedArtifact(path)
@@ -80,12 +81,12 @@ public struct ArtifactGuard: Sendable {
     }
 }
 
-/// Особисті файли (великі, інсталятори, дублікати). Лише звичайні файли в типових папках користувача,
-/// які переміщуються в Кошик. Прихованого, пакетів (.app, .photoslibrary…) і службових тек не торкається.
+/// Personal files (large files, installers, duplicates). Only regular files in the user's typical folders,
+/// which are moved to the Trash. Hidden items, packages (.app, .photoslibrary…) and special folders are not touched.
 public struct UserFileGuard: Sendable {
     public static let defaultRootNames = ["Downloads", "Desktop", "Documents", "Movies", "Music", "Pictures"]
 
-    /// Теки-пакети: для Finder це один файл, а всередині живуть бібліотеки й проєкти.
+    /// Package folders: Finder shows each as a single file, but libraries and projects live inside.
     public static let packageExtensions: Set<String> = [
         "app", "photoslibrary", "fcpbundle", "lrdata", "imovielibrary", "musiclibrary", "tvlibrary",
         "logicx", "band", "sparsebundle", "xcodeproj", "xcworkspace", "playground", "framework",
@@ -102,7 +103,7 @@ public struct UserFileGuard: Sendable {
         self.roots = roots.map(\.standardizedFileURL).filter { ArtifactGuard.isValidRoot($0, home: home) }
     }
 
-    /// Чи заходити всередину теки під час обходу (спільна логіка для сканера і охоронця).
+    /// Whether to descend into a folder during traversal (logic shared by the scanner and the guard).
     public static func shouldDescend(into name: String) -> Bool {
         if name.hasPrefix(".") { return false }
         if packageExtensions.contains((name as NSString).pathExtension.lowercased()) { return false }
@@ -134,7 +135,7 @@ public struct UserFileGuard: Sendable {
     }
 }
 
-/// Резервні копії iPhone/iPad: лише прямі діти `~/Library/Application Support/MobileSync/Backup`.
+/// iPhone/iPad backups: only direct children of `~/Library/Application Support/MobileSync/Backup`.
 public struct BackupGuard: Sendable {
     public let backupRoot: URL
 
@@ -153,12 +154,12 @@ public struct BackupGuard: Sendable {
     }
 }
 
-/// Деінсталятор: застосунок із /Applications чи ~/Applications і його залишки в ~/Library.
+/// Uninstaller: an app from /Applications or ~/Applications and its leftovers in ~/Library.
 public struct ApplicationGuard: Sendable {
     public static let ownBundleID = "com.pavlogrinchenko.cleaner"
 
-    /// Необов'язкові програми Apple, які користувач сам ставив з App Store й може прибрати.
-    /// Усе інше з `com.apple.*` (Safari, Finder, Системні налаштування…) недоторканне.
+    /// Optional Apple apps that the user installed from the App Store themselves and may remove.
+    /// Everything else under `com.apple.*` (Safari, Finder, System Settings…) is untouchable.
     public static let optionalAppleApps: Set<String> = [
         "com.apple.iMovieApp", "com.apple.garageband10", "com.apple.iWork.Keynote",
         "com.apple.iWork.Pages", "com.apple.iWork.Numbers",
@@ -168,8 +169,8 @@ public struct ApplicationGuard: Sendable {
         bundleID.lowercased().hasPrefix("com.apple.") && !optionalAppleApps.contains(bundleID)
     }
 
-    /// Системні й особисті теки Apple, які ніколи не вважаємо «залишками» стороннього застосунку, хоч би що
-    /// написав у Info.plist його автор (назва чи bundle ID можуть збігатися: `AddressBook`, `Mail`, `CloudDocs`…).
+    /// System and personal Apple folders that we never treat as "leftovers" of a third-party app, no matter what
+    /// its author wrote in Info.plist (the name or bundle ID may coincide: `AddressBook`, `Mail`, `CloudDocs`…).
     private static let neverLeftoverNames: Set<String> = [
         "addressbook", "mobilesync", "clouddocs", "mail", "safari", "messages", "keychains", "calendars",
         "accounts", "cookies", "photos", "mobile documents", "cloudstorage", "icloud", "caches", "logs",
@@ -182,12 +183,12 @@ public struct ApplicationGuard: Sendable {
             || neverLeftoverNames.contains(lower)
     }
 
-    /// Куди можуть потрапляти залишки програм (відносно ~/Library). Нічого поза цим списком не чіпаємо.
+    /// Where app leftovers may end up (relative to ~/Library). We touch nothing outside this list.
     public static let leftoverFolders = [
         "Application Support", "Caches", "Preferences", "Preferences/ByHost", "Containers", "Group Containers",
         "Saved Application State", "HTTPStorages", "WebKit", "Logs", "Cookies", "LaunchAgents", "Application Scripts",
     ]
-    /// Лише тут дозволено збіг за назвою програми, а не за bundle ID.
+    /// Only here is matching by app name (rather than by bundle ID) allowed.
     private static let nameMatchFolders: Set<String> = ["Application Support", "Caches", "Logs"]
 
     public let home: URL
@@ -209,8 +210,8 @@ public struct ApplicationGuard: Sendable {
         return info["CFBundleIdentifier"] as? String
     }
 
-    /// Точний збіг: `com.vendor.foo`, `com.vendor.foo.plist`, `ABC123.com.vendor.foo`, `group.com.vendor.foo`.
-    /// Просте `contains` тут небезпечне: `com.vendor.foobar` не належить `com.vendor.foo`.
+    /// Exact match: `com.vendor.foo`, `com.vendor.foo.plist`, `ABC123.com.vendor.foo`, `group.com.vendor.foo`.
+    /// A plain `contains` is dangerous here: `com.vendor.foobar` does not belong to `com.vendor.foo`.
     static func matches(name: String, bundleID: String) -> Bool {
         name == bundleID || name.hasPrefix(bundleID + ".") || name.hasSuffix("." + bundleID) || name == "group." + bundleID
     }
@@ -247,7 +248,7 @@ public struct ApplicationGuard: Sendable {
     }
 }
 
-/// Усі правила безпеки в одному місці: для кожного елемента вибирає потрібного охоронця.
+/// All safety rules in one place: picks the right guard for each entry.
 public struct SafetyPolicy: Sendable {
     public let home: PathGuard
     public let artifacts: ArtifactGuard
@@ -271,7 +272,7 @@ public struct SafetyPolicy: Sendable {
         self.applications = ApplicationGuard(home: home, applicationRoots: applicationRoots)
     }
 
-    /// Кидає помилку, якщо з цим елементом не можна нічого робити.
+    /// Throws an error if nothing may be done with this entry.
     public func validate(_ entry: Entry) throws {
         switch entry.action {
         case .simctlDeleteDevice(let udid):

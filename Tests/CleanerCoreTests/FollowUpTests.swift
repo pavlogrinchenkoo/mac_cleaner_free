@@ -23,7 +23,7 @@ final class BulkSelectionPolicyTests: CleanerTestCase {
     }
 
     func testNothingPersonalIsRecommended() {
-        // «Рекомендоване» = вибране за замовчуванням, а воно ніколи не охоплює особисте.
+        // "Recommended" = selected by default, and that never covers personal data.
         let rule = FileScanner.duplicatesRule
         for scope in [EntryScope.userFile, .backup, .application] {
             var entry = Entry(ruleID: rule.id, url: URL(fileURLWithPath: "/tmp/x"), scope: scope)
@@ -90,7 +90,7 @@ final class AdobeVersionsTests: CleanerTestCase {
         var entry = try XCTUnwrap(AdobeVersions.discover(roots: [apps]).entries.first { $0.name == "Adobe Photoshop 2025" })
         entry.measurement = DiskSize.measure(entry.url)
         var unlocked = entry
-        unlocked.lockedReason = nil   // навіть якщо хтось зніме блокування, охоронець не дозволить
+        unlocked.lockedReason = nil   // even if someone removes the lock, the guard will not allow it
         let report = makeEngine(home, applicationRoots: [apps]).clean(
             entries: [entry, unlocked], rules: [AdobeVersions.rule], dryRun: false)
         XCTAssertEqual(report.skipped.count, 2)
@@ -135,7 +135,7 @@ final class TelegramRuleTests: CleanerTestCase {
 
         var entries = result.entries
         for index in entries.indices { entries[index].measurement = DiskSize.measure(entries[index].url) }
-        // У тесті Telegram, найімовірніше, запущений: перевіряємо лише, що саме видаляється, без блокування.
+        // Telegram is most likely running during the test: we only check what exactly gets deleted, without the block.
         let unblocked = CleanupRule(id: rule.id, group: rule.group, title: rule.title, detail: rule.detail, risk: rule.risk, paths: rule.paths, granularity: rule.granularity)
         let report = makeEngine(home).clean(entries: entries, rules: [unblocked], dryRun: false)
         XCTAssertTrue(report.failures.isEmpty)
@@ -188,10 +188,10 @@ final class SurveyDrillDownTests: CleanerTestCase {
     }
 }
 
-/// Регресії, знайдені за реальним логом з чужого Mac.
+/// Regressions found from a real log from someone else's Mac.
 final class LogDrivenRegressionTests: CleanerTestCase {
     func testBundlePatternsAreCaseInsensitive() throws {
-        // Реальний bundle ID Illustrator — з малої літери, а шаблон правила міг бути з великої.
+        // The real Illustrator bundle ID is lowercase, while the rule pattern could be capitalized.
         let snapshot = RunningSnapshot(bundleIDs: ["com.adobe.illustrator"], appNames: [])
         let rule = try makeRule(paths: ["~/x"], extra: "\"blockedByApps\":[\"com.adobe.Illustrator*\"]")
         XCTAssertNotNil(RunningProbe.blockReason(for: rule, snapshot: snapshot))
@@ -205,7 +205,7 @@ final class LogDrivenRegressionTests: CleanerTestCase {
             XCTAssertNotNil(
                 RunningProbe.blockReason(for: rule, snapshot: RunningSnapshot(bundleIDs: [bundleID], appNames: [])), bundleID)
         }
-        // Фонові служби Creative Cloud не мають блокувати чищення назавжди.
+        // Creative Cloud background services must not block cleaning forever.
         let background = RunningSnapshot(bundleIDs: ["com.adobe.acc.AdobeCreativeCloud", "com.adobe.ccd.helper"], appNames: [])
         XCTAssertNil(RunningProbe.blockReason(for: rule, snapshot: background))
     }
@@ -251,7 +251,7 @@ final class LogDrivenRegressionTests: CleanerTestCase {
 
 final class BackgroundHelperTests: CleanerTestCase {
     func testBackgroundAgentDoesNotBlockTheAppsOwnCaches() {
-        // Реальний випадок: працює лише фоновий figma_agent, сам Figma закрито.
+        // Real case: only the background figma_agent is running, Figma itself is closed.
         let snapshot = RunningSnapshot(
             bundleIDs: ["com.figma.agent"], appNames: ["figma_agent"], regularAppNames: [])
         XCTAssertFalse(snapshot.ownsCache(named: "Figma"), "кеш Figma не належить фоновому агентові")
@@ -274,7 +274,7 @@ final class BackgroundHelperTests: CleanerTestCase {
 final class SurveyPinnedItemsTests: CleanerTestCase {
     func testNotesAndIncompleteItemsSurviveTheTopCut() throws {
         let home = try FakeHome()
-        // Більше елементів, ніж вміщає топ; «хмарна» тека має нульовий розмір і за розміром випала б.
+        // More entries than the top list holds; the "cloud" folder has zero size and would drop out by size.
         for i in 0..<(DiskSurvey.topPerSection + 10) { try home.makeFile("Lib/item\(i)/a.bin", bytes: 6_000) }
         try home.makeFile("Lib/Mobile Documents/x.bin", bytes: 6_000)
         let cloud = home.path("Lib/Mobile Documents").path

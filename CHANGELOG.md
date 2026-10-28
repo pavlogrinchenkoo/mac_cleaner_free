@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Code comments, test comments and script messages are now in English (no code changes).
+
 ## 1.1.0 — 2026-10-28
 
 - **English interface** alongside Ukrainian. Follows the Mac's language by default; switch with the globe button in the

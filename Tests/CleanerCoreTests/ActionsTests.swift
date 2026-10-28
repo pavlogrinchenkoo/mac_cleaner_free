@@ -70,7 +70,7 @@ final class AppleScriptTests: CleanerTestCase {
         XCTAssertEqual(AppleScript.removeCommand(for: ["/a b/c", "/x'y"]), "/bin/rm -rf -- '/a b/c' '/x'\\''y'")
     }
 
-    /// Справжній прогін через osascript (без прав адміна): рядок має дійти до shell без змін.
+    /// A real run through osascript (without administrator rights): the string must reach the shell unchanged.
     func testQuotingSurvivesAppleScriptAndShell() {
         let nasty = "it's a \"test\" \\ with $HOME `cmd` ; & * spaces ü"
         let script = AppleScript.doShellScript(command: "printf '%s' " + AppleScript.shellQuote(nasty), prompt: nil, admin: false)
@@ -173,7 +173,7 @@ final class EngineActionTests: CleanerTestCase {
         XCTAssertTrue(runner.calls.isEmpty, "жодної команди: \(runner.calls)")
     }
 
-    // MARK: Адмін
+    // MARK: Admin
 
     private func adminSetup() throws -> (FakeHome, CleanupRule, SafetyPolicy, [Entry]) {
         let home = try FakeHome()
@@ -258,7 +258,7 @@ final class EngineActionTests: CleanerTestCase {
         XCTAssertTrue(privileged.receivedBatches.isEmpty)
     }
 
-    // MARK: AVD і проєкти
+    // MARK: AVD and projects
 
     func testAvdIsRemovedTogetherWithItsIni() throws {
         let home = try FakeHome()
@@ -293,7 +293,7 @@ final class EngineActionTests: CleanerTestCase {
         XCTAssertEqual(entries.count, 1)
         entries[0].measurement = DiskUsage(bytes: 30_000, fileCount: 1, lastModified: nil, hadErrors: false)
 
-        // Той самий елемент без дозволеної папки проєктів рушій відхиляє: Documents захищено.
+        // The engine rejects the same entry without an allowed projects folder: Documents is protected.
         let denied = makeEngine(home).clean(entries: entries, rules: ArtifactKind.all.map(\.rule), dryRun: false)
         XCTAssertEqual(denied.skipped.count, 1)
         XCTAssertTrue(home.exists("Documents/Projects/app/node_modules"))

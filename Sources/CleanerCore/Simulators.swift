@@ -1,10 +1,10 @@
 import Foundation
 
-/// Знаходить iOS-симулятори й їхні runtimes через `xcrun simctl`.
+/// Finds iOS simulators and their runtimes through `xcrun simctl`.
 public enum SimulatorProvider {
     static let xcrun = "/usr/bin/xcrun"
 
-    // MARK: Пристрої
+    // MARK: Devices
 
     public static func deviceEntries(
         runner: CommandRunner, ruleID: String, home: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -25,7 +25,7 @@ public enum SimulatorProvider {
             for device in devices {
                 guard let udid = device["udid"] as? String, let name = device["name"] as? String else { continue }
                 let dataPath = device["dataPath"] as? String
-                // dataPath вказує на `.../Devices/<UDID>/data`; видаляємо весь пристрій.
+                // dataPath points to `.../Devices/<UDID>/data`; we delete the whole device.
                 let directory = dataPath.map { URL(fileURLWithPath: $0).deletingLastPathComponent() }
                     ?? home.appendingPathComponent("Library/Developer/CoreSimulator/Devices/\(udid)")
 
@@ -82,7 +82,7 @@ public enum SimulatorProvider {
             )
         }
 
-        // Для кожного runtime шукаємо новішу збірку того ж платформного випуску (17.0 → 17.0.1).
+        // For each runtime, look for a newer build of the same platform release (17.0 → 17.0.1).
         let newestByIdentifier = Dictionary(grouping: runtimes, by: \.identifier).mapValues { group in
             group.max { VersionedName.isNewer(numbers($1.version), than: numbers($0.version)) }!.version
         }
@@ -106,7 +106,7 @@ public enum SimulatorProvider {
         }
     }
 
-    // MARK: Допоміжне
+    // MARK: Helpers
 
     private static func numbers(_ version: String) -> [Int] {
         version.split(separator: ".").compactMap { Int($0) }

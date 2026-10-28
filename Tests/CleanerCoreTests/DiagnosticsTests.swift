@@ -138,7 +138,7 @@ final class DiagnosticsTests: CleanerTestCase {
     }
 }
 
-// MARK: - Мови звіту
+// MARK: - Report languages
 
 final class DiagnosticsLocalizationTests: CleanerTestCase {
     private func entry(
@@ -150,7 +150,7 @@ final class DiagnosticsLocalizationTests: CleanerTestCase {
         return entry
     }
 
-    /// Звіт, у якому є всі класи елементів, правило з порогом, підсумок очищення й карта місця.
+    /// A report that contains every item class, a rule with a threshold, the cleanup summary and the space map.
     private func richReport(_ home: FakeHome) throws -> String {
         let cache = try makeRule(id: "cache", paths: ["~/a"])
         let files = try makeRule(id: "files", paths: ["~/b"], extra: "\"moveToTrash\":true,\"bulkSelectable\":false")
@@ -248,7 +248,7 @@ final class DiagnosticsLocalizationTests: CleanerTestCase {
             XCTAssertTrue(text.contains(expected), "немає «\(expected)» у звіті:\n\(text)")
         }
 
-        // Маркери, які шукає самоперевірка, — саме ті, що друкує звіт.
+        // The markers the self-check looks for are exactly the ones the report prints.
         XCTAssertEqual(DiagnosticMarkers.summaryHeader, "== SUMMARY ==")
         XCTAssertEqual(DiagnosticMarkers.surveyHeader, "== DISK USAGE MAP ==")
         XCTAssertEqual(DiagnosticMarkers.installedAppsHeader(count: 1), "== INSTALLED APPS (1) ==")
@@ -262,7 +262,7 @@ final class DiagnosticsLocalizationTests: CleanerTestCase {
         let unexplainedLine = text.components(separatedBy: "\n").first { $0.hasPrefix("⚠︎") && $0.contains(DiagnosticMarkers.unexplainedPhrase) }
         XCTAssertNotNil(unexplainedLine, "підсумок про вибір невідомого походження має містити \(DiagnosticMarkers.unexplainedPhrase)")
 
-        // Жоден український рядок цього звіту не «протік» в англійський.
+        // No Ukrainian string of this report has "leaked" into the English one.
         let spec = try NSRegularExpression(pattern: "%(?:\\d+\\$)?(?:ll|l)?[d@]")
         for (english, ukrainian) in DiagnosticsStrings.uk {
             let range = NSRange(ukrainian.startIndex..., in: ukrainian)

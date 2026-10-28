@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-// MARK: - Охоронець особистих файлів
+// MARK: - Personal files guard
 
 final class UserFileGuardTests: CleanerTestCase {
     private func make() throws -> (FakeHome, UserFileGuard) {
@@ -52,7 +52,7 @@ final class UserFileGuardTests: CleanerTestCase {
     }
 }
 
-// MARK: - Пошук файлів
+// MARK: - File search
 
 final class FileScannerTests: CleanerTestCase {
     private func settings(_ home: FakeHome, excluded: [URL] = []) -> FileScanSettings {
@@ -114,7 +114,7 @@ final class FileScannerTests: CleanerTestCase {
 
         let found = results(home)
         XCTAssertEqual(Set((found["files.installers"] ?? []).map(\.name)), ["App.dmg", "Setup.pkg", "Huge.dmg"])
-        // Інсталятор не показуємо вдруге серед великих архівів.
+        // Do not show an installer a second time among the large archives.
         XCTAssertFalse((found["files.large.archives"] ?? []).contains { $0.name == "Huge.dmg" })
         XCTAssertTrue((found["files.large.archives"] ?? []).contains { $0.name == "Keep.dmg" } == false, "Keep.dmg меншого за поріг розміру")
     }
@@ -127,9 +127,9 @@ final class FileScannerTests: CleanerTestCase {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try content.write(to: url)
         }
-        // Той самий розмір, інший вміст: не дублікат.
+        // Same size, different content: not a duplicate.
         try Data(repeating: 0x22, count: 200_000).write(to: home.path("Documents/other.bin"))
-        // Дрібні копії нижче порога.
+        // Small copies below the threshold.
         try home.makeFile("Documents/tiny1.bin", bytes: 1_000)
         try home.makeFile("Documents/tiny2.bin", bytes: 1_000)
 
@@ -141,7 +141,7 @@ final class FileScannerTests: CleanerTestCase {
             XCTAssertEqual(entry.keeper?.size, 200_000)
             XCTAssertTrue(entry.subtitle?.hasPrefix("Копія: ") == true)
         }
-        // Копії не показуються ще й серед великих файлів.
+        // Copies are not shown among the large files either.
         let large = (found["files.large.other"] ?? []).map(\.name)
         XCTAssertFalse(large.contains("photo-copy.bin"))
         XCTAssertTrue(large.contains("photo.bin"), "оригінал можна бачити серед великих")
@@ -181,7 +181,7 @@ final class FileScannerTests: CleanerTestCase {
     }
 }
 
-// MARK: - Рушій: Кошик і дублікати
+// MARK: - Engine: Trash and duplicates
 
 final class TrashEngineTests: CleanerTestCase {
     private func fileEntry(_ home: FakeHome, _ relative: String, rule: CleanupRule, keeper: Keeper? = nil, bytes: Int64 = 5_000) -> Entry {
@@ -249,14 +249,14 @@ final class TrashEngineTests: CleanerTestCase {
             modified: (attributes[.modificationDate] as! Date).timeIntervalSince1970.rounded(.down))
         let roots = [home.path("Documents"), home.path("Downloads")]
 
-        // 1. Оригінал на місці: копію можна прибрати.
+        // 1. The original is in place: the copy can be removed.
         let trasher = FakeTrasher(directory: home.path("tr"))
         var report = makeEngine(home, fileRoots: roots, trasher: trasher).clean(
             entries: [fileEntry(home, "Downloads/copy.bin", rule: rule, keeper: keeper)], rules: [rule], dryRun: false)
         XCTAssertEqual(report.trashedBytes, 5_000)
         XCTAssertTrue(home.exists("Documents/original.bin"))
 
-        // 2. Оригінал змінили після скану: копію не чіпаємо.
+        // 2. The original was modified after the scan: leave the copy alone.
         try home.makeFile("Downloads/copy2.bin", bytes: 5_000)
         try Data(repeating: 0x99, count: 7_000).write(to: keeperFile)
         report = makeEngine(home, fileRoots: roots, trasher: trasher).clean(
@@ -264,7 +264,7 @@ final class TrashEngineTests: CleanerTestCase {
         XCTAssertEqual(report.skipped.count, 1)
         XCTAssertTrue(home.exists("Downloads/copy2.bin"))
 
-        // 3. Оригінал зник: теж не чіпаємо.
+        // 3. The original is gone: leave the copy alone too.
         try home.makeFile("Downloads/copy3.bin", bytes: 5_000)
         try FileManager.default.removeItem(at: keeperFile)
         report = makeEngine(home, fileRoots: roots, trasher: trasher).clean(
@@ -318,7 +318,7 @@ final class TrashEngineTests: CleanerTestCase {
     }
 }
 
-// MARK: - Резервні копії iPhone
+// MARK: - iPhone backups
 
 final class BackupTests: CleanerTestCase {
     private let udid = "00008110-001A2B3C4D5E6F78"
@@ -396,7 +396,7 @@ final class BackupTests: CleanerTestCase {
     }
 }
 
-// MARK: - Деінсталятор
+// MARK: - Uninstaller
 
 final class UninstallerTests: CleanerTestCase {
     private func setup() throws -> (FakeHome, URL) {
@@ -406,14 +406,14 @@ final class UninstallerTests: CleanerTestCase {
         try makeApp(home, at: "Apps/Foo.app", bundleID: "com.vendor.foo", name: "Foo", version: "2.1")
         try makeApp(home, at: "Apps/Safari.app", bundleID: "com.apple.Safari", name: "Safari")
         try makeApp(home, at: "Apps/Cleaner.app", bundleID: ApplicationGuard.ownBundleID, name: "Cleaner")
-        // Свої залишки Foo.
+        // Foo's own leftovers.
         for path in [
             "Library/Caches/com.vendor.foo/data", "Library/Containers/com.vendor.foo/Data/x",
             "Library/Preferences/com.vendor.foo.plist", "Library/Application Support/Foo/db",
             "Library/Group Containers/ABC123.com.vendor.foo/x", "Library/Saved Application State/com.vendor.foo.savedState/x",
             "Library/Preferences/ByHost/com.vendor.foo.ABCDEF.plist",
         ] { try home.makeFile(path) }
-        // Чужі, схожі за назвою: чіпати не можна.
+        // Other apps' items with similar names: must not be touched.
         for path in [
             "Library/Caches/com.vendor.foobar/data", "Library/Application Support/FooBar/db",
             "Library/Preferences/com.vendor.foo2.plist", "Library/Application Support/Other/foo.txt",
@@ -456,7 +456,7 @@ final class UninstallerTests: CleanerTestCase {
         XCTAssertFalse(home.exists("Apps/Foo.app"))
         XCTAssertFalse(home.exists("Library/Caches/com.vendor.foo"))
         XCTAssertFalse(home.exists("Library/Application Support/Foo"))
-        // Чуже лишається.
+        // Other apps' items remain.
         XCTAssertTrue(home.exists("Library/Caches/com.vendor.foobar"))
         XCTAssertTrue(home.exists("Library/Application Support/FooBar"))
         XCTAssertTrue(home.exists("Library/Preferences/com.vendor.foo2.plist"))
@@ -532,7 +532,7 @@ final class UninstallerTests: CleanerTestCase {
     }
 }
 
-// MARK: - Кеші за власником
+// MARK: - Caches by owner
 
 final class OwnerCacheTests: CleanerTestCase {
     private func rule() throws -> CleanupRule {
@@ -572,7 +572,7 @@ final class OwnerCacheTests: CleanerTestCase {
         let discord = try XCTUnwrap(result.entries.first { $0.name == "QrsChat" })
         XCTAssertNil(DiskScanner.blockReason(for: discord, rule: rule, ruleBlock: nil, snapshot: running))
 
-        // Видалення чистить лише теки кешу, а не профіль.
+        // Deletion cleans only the cache folders, not the profile.
         var measured = figma
         measured.measurement = DiskSize.measure(figma.url)
         let report = makeEngine(home).clean(entries: [measured], rules: [rule], dryRun: false)

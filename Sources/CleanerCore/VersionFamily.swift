@@ -1,11 +1,11 @@
 import Foundation
 
-/// Розбір назв на кшталт `AndroidStudio2025.3.4` або `WebStorm2026.1` на родину й версію.
+/// Splits names like `AndroidStudio2025.3.4` or `WebStorm2026.1` into a family and a version.
 public struct VersionedName: Equatable, Sendable {
     public let family: String
     public let version: [Int]
 
-    /// `nil`, якщо в кінці назви немає версії виду `2025.3` чи `2025.3.4`.
+    /// `nil` if the name does not end with a version like `2025.3` or `2025.3.4`.
     public init?(_ name: String) {
         guard let range = name.range(of: #"\d{4}(\.\d+){1,2}$"#, options: .regularExpression) else { return nil }
         let family = String(name[..<range.lowerBound])
@@ -25,7 +25,7 @@ public struct VersionedName: Equatable, Sendable {
 }
 
 public enum VersionFamily {
-    /// Для кожної родини повертає назву найновішої версії.
+    /// For each family, returns the name of the newest version.
     public static func newestPerFamily(names: [String]) -> [String: String] {
         var best: [String: (name: String, version: [Int])] = [:]
         for name in names {

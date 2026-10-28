@@ -1,7 +1,7 @@
 import XCTest
 @testable import CleanerCore
 
-/// Не наслідує CleanerTestCase: сам керує мовою.
+/// Does not inherit from CleanerTestCase: it manages the language itself.
 final class LocalizationTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -13,7 +13,7 @@ final class LocalizationTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Мова
+    // MARK: - Language
 
     func testSystemLanguageFollowsTheFirstSupportedPreferredLanguage() {
         XCTAssertEqual(Loc.systemLanguage(preferred: ["uk-UA", "en-US"]), .uk)
@@ -38,7 +38,7 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
-    // MARK: - Розміри й множина
+    // MARK: - Sizes and plurals
 
     func testBytesInEnglish() {
         XCTAssertEqual(Loc.bytes(0, language: .en), "0 KB")
@@ -80,7 +80,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(Loc.plural(3, en: ("day", "days"), uk: ("день", "дні", "днів"), language: .uk), "дні")
     }
 
-    // MARK: - Таблиці перекладів
+    // MARK: - Translation tables
 
     private var repoRoot: URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -109,7 +109,7 @@ final class LocalizationTests: XCTestCase {
         return result
     }
 
-    /// Усі ключі, що передаються в `L("…")` у коді: `(файл, ключ)`.
+    /// All keys passed to `L("…")` in the code: `(file, key)`.
     private func usedKeys() throws -> [(file: String, key: String)] {
         let single = try NSRegularExpression(pattern: #"\bL\(\s*"((?:[^"\\\n]|\\.)*)""#)
         let multi = try NSRegularExpression(pattern: #"\bL\(\s*\"\"\"\n((?:.|\n)*?)\n([ \t]*)\"\"\""#)
@@ -119,7 +119,7 @@ final class LocalizationTests: XCTestCase {
             let range = NSRange(text.startIndex..., in: text)
             for match in single.matches(in: text, range: range) {
                 guard match.range(at: 1).location != NSNotFound, let r = Range(match.range(at: 1), in: text) else { continue }
-                // `L("""` починається з трьох лапок: регулярний вираз single не повинен його зачепити.
+                // `L("""` starts with three quotes: the single-quote regular expression must not match it.
                 if text[r].isEmpty, text[r.upperBound...].hasPrefix("\"\"") { continue }
                 found.append((relative(file), unescape(String(text[r]))))
             }
@@ -144,7 +144,7 @@ final class LocalizationTests: XCTestCase {
     }
 
     func testKeysAreStaticLiterals() throws {
-        // `L("… \(x) …")` не можна перекласти: ключ має бути сталим рядком із %@/%ld.
+        // `L("… \(x) …")` cannot be translated: the key must be a constant string with %@/%ld.
         let interpolated = try usedKeys().filter { $0.key.contains("\\(") }
         XCTAssertTrue(interpolated.isEmpty, interpolated.map { "\($0.file): \($0.key)" }.joined(separator: "\n"))
     }
@@ -191,7 +191,8 @@ final class LocalizationTests: XCTestCase {
                 if line.trimmingCharacters(in: .whitespaces).hasPrefix("//") { continue }
                 // Ukrainian noun forms inside `Loc.plural(…, uk: (…))` are the intended place for them.
                 if line.contains("Loc.plural(") { continue }
-                // Прибираємо коментар у кінці рядка (грубо, але вистачає: `//` усередині рядка тут не трапляється).
+                // Strip the trailing comment from the line (crude, but enough: `//` does not occur inside a string
+                // here).
                 let code = line.range(of: " //").map { String(line[..<$0.lowerBound]) } ?? line
                 let range = NSRange(code.startIndex..., in: code)
                 if cyrillic.firstMatch(in: code, range: range) != nil {
@@ -202,7 +203,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertTrue(leaks.isEmpty, "Українські рядки в коді поза таблицями:\n" + leaks.joined(separator: "\n"))
     }
 
-    // MARK: - Англійський інтерфейс наскрізно
+    // MARK: - English UI end to end
 
     private func hasCyrillic(_ text: String) -> Bool {
         text.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
@@ -214,8 +215,8 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(english.rules.map(\.id), ukrainian.rules.map(\.id))
         XCTAssertFalse(english.groups.contains { hasCyrillic($0.title) })
         XCTAssertFalse(english.rules.contains { hasCyrillic($0.title) || hasCyrillic($0.detail) })
-        // Деякі назви однакові в обох мовах («Xcode DerivedData»), тож перевіряємо, що переклад застосовано
-        // до переважної більшості, а кожен опис українською справді українською.
+        // Some names are identical in both languages ("Xcode DerivedData"), so we check that the translation was
+        // applied to the vast majority, and that every Ukrainian description really is in Ukrainian.
         let translatedGroups = zip(english.groups, ukrainian.groups).filter { $0.title != $1.title }.count
         let translatedRules = zip(english.rules, ukrainian.rules).filter { $0.title != $1.title }.count
         XCTAssertGreaterThanOrEqual(translatedGroups, english.groups.count - 2)
@@ -288,7 +289,8 @@ final class LocalizationTests: XCTestCase {
         let english = L("Dry run")
         Loc.current = .uk
         let ukrainian = L("Dry run")
-        // Якщо ключа немає в таблицях, обидва збігаються: це теж помилка, бо «Dry run» є в інтерфейсі.
+        // If the key is missing from the tables, both values match: that is also a failure, because "Dry run" is in
+        // the UI.
         XCTAssertEqual(english, "Dry run")
         XCTAssertEqual(ukrainian, "Пробний запуск")
     }
